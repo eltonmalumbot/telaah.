@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Telaah | Pemeriksa Indikasi AI",
-  description: "Tinjau pola bahasa dan duplikasi jawaban dengan alasan yang terbuka. Pemeriksaan teks dan Excel di perangkat Anda.",
+  title: "Telaah | Indikasi AI & Kualitas Jawaban",
+  description: "Tinjau pola bahasa, duplikasi, dan kandidat jawaban terbaik dengan rubrik yang bisa dikoreksi. Pemeriksaan teks, Excel, dan laporan PDF di perangkat Anda.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
