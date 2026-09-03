@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {analyzeText,analyzeBatch,exportCSV} from '../lib/analysis.ts';
+import {analyzeText,analyzeBatch,exportCSV,matchingParticipants} from '../lib/analysis.ts';
 import {parseCSV,autoMapping,toParticipants} from '../lib/import.ts';
 
 const participant=(id,a,b='',duration='')=>({id,name:`Peserta ${id}`,group:'A',response1:a,response2:b,duration});
@@ -27,4 +27,37 @@ test('impor dan ekspor mempertahankan teks multiline dan menetralkan formula CSV
 test('sinyal menyertakan bukti dan batas penafsiran',()=>{
  const r=analyzeText('Sebagai model bahasa AI, saya tidak memiliki pengalaman pribadi.');
  assert.equal(r.signals[0].id,'identity');assert.ok(r.signals[0].evidence.length);assert.ok(r.signals[0].caution);
+});
+
+test('daftar peserta mengikuti empat jenis kecocokan dan jumlah yang ditampilkan',()=>{
+ const rows=analyzeBatch([
+  participant(1,'Buku  A','Rencana'),participant(2,'Buku  A','Rencana'),
+  participant(3,'ｂｕｋｕ a','rencana'),participant(4,'Buku  A','Lain'),
+  participant(5,'Lain','Rencana'),participant(6,''),participant(7,'   ')
+ ]);
+ const counts={exact:'exactCount',normalized:'similarCount',response1:'response1Count',response2:'response2Count'};
+ for(const row of rows)for(const [kind,key] of Object.entries(counts)) {
+  const matches=matchingParticipants(rows,row,kind);
+  assert.equal(matches.length,row[key]);
+  if(row[key])assert.ok(matches.some(match=>match.id===row.id));
+ }
+ const ids=kind=>matchingParticipants(rows,rows[0],kind).map(row=>row.id);
+ assert.deepEqual(ids('exact'),[1,2]);
+ assert.deepEqual(ids('normalized'),[1,2,3]);
+ assert.deepEqual(ids('response1'),[1,2,4]);
+ assert.deepEqual(ids('response2'),[1,2,5]);
+});
+
+test('peserta di luar filter tetap dapat dibuka dan nama sama tidak digabung',()=>{
+ const rows=analyzeBatch(Array.from({length:185},(_,index)=>({
+  ...participant(index+1,'Jawaban bersama','Rencana bersama'),
+  name:index<2?'Nama yang sama':`Peserta ${index+1}`,group:index===0?'BJI':'BPA'
+ })));
+ const selected=rows.filter(row=>row.group==='BJI')[0];
+ const matches=matchingParticipants(rows,selected,'exact');
+ assert.equal(matches.length,185);
+ assert.equal(matches[1].group,'BPA');
+ assert.notEqual(matches[0].id,matches[1].id);
+ assert.equal(matches[0].name,matches[1].name);
+ assert.equal(rows.find(row=>row.id===matches.at(-1).id)?.name,'Peserta 185');
 });

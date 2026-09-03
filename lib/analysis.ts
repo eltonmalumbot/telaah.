@@ -26,6 +26,17 @@ export function analyzeText(input: string): TextAnalysis {
 const normalized = (s: string) => s.normalize('NFKC').toLocaleLowerCase('id').replace(/\s+/g,' ').trim();
 const pair = (r: Participant, norm=false) => JSON.stringify(norm ? [normalized(r.response1),normalized(r.response2)] : [r.response1,r.response2]);
 function increment(m: Map<string,number>, key: string) { m.set(key,(m.get(key)??0)+1); }
+export type MatchKind = 'exact' | 'normalized' | 'response1' | 'response2';
+/** Pass the complete imported file, before table filtering or pagination. Includes the selected response. */
+export function matchingParticipants<T extends Participant>(rows: T[], selected: Participant, kind: MatchKind): T[] {
+  if (kind === 'response1' || kind === 'response2') {
+    if (!selected[kind].trim()) return [];
+    return rows.filter(row => row[kind] === selected[kind]);
+  }
+  if (!selected.response1.trim() && !selected.response2.trim()) return [];
+  const key = pair(selected, kind === 'normalized');
+  return rows.filter(row => (row.response1.trim() || row.response2.trim()) && pair(row, kind === 'normalized') === key);
+}
 export function analyzeBatch(rows: Participant[], prompt = ''): Reviewed[] {
   const exact=new Map<string,number>(), similar=new Map<string,number>(), a=new Map<string,number>(),b=new Map<string,number>();
   for(const r of rows) {

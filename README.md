@@ -54,6 +54,7 @@ npm start
 - Impor `.xlsx` atau `.csv` dengan pemetaan nama, grup, dua jawaban, dan durasi; mendukung ekspor Moodle.
 - Batas impor: 10 MB file, 60 MB isi ZIP XLSX, 10.000 baris, 64 kolom, dan 50.000 karakter per sel. Hanya lembar pertama dibaca.
 - Cari nama atau grup; filter dan urutkan hasil; buka rincian dua jawaban.
+- Klik jumlah peserta pada **Kecocokan dalam file** untuk melihat nama/grup yang cocok dan membuka detail responsnya. Empat jenis kecocokan tersedia; daftar berasal dari seluruh file sebelum filter dan Top 10, menandai peserta yang sedang dibuka, serta mendukung pencarian dan halaman untuk kelompok besar.
 - Bandingkan pasangan jawaban secara persis, per jawaban, serta setelah normalisasi Unicode NFKC, huruf kecil, dan spasi. Jumlah mencakup peserta yang sedang diperiksa. Teks kosong tidak dihitung sebagai duplikat.
 - Unduh hasil yang sedang difilter dan diurutkan sebagai CSV, dengan penetralan awalan formula spreadsheet.
 - Unduh PDF teks tunggal: ringkasan, alasan, kutipan, batas interpretasi, dan seluruh teks yang diperiksa.
