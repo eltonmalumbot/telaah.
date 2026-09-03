@@ -1,6 +1,6 @@
 # Telaah
 
-Website pemeriksaan pola bahasa, duplikasi, dan kualitas refleksi peserta, menggunakan **Next.js 16, React 19, dan TypeScript**. Siap diimpor dari GitHub ke Vercel.
+Website pemeriksaan pola bahasa, duplikasi, kualitas refleksi peserta, dan pembuatan sertifikat, menggunakan **Next.js 16, React 19, dan TypeScript**. Siap diimpor dari GitHub ke Vercel.
 
 > Repositori ini bernama `eltonmalumbot/telaah.` (ada titik pada akhir nama repo). Untuk nama proyek Vercel, gunakan `telaah` atau nama lain yang masih tersedia.
 
@@ -91,6 +91,19 @@ Laporan peserta merangkum semua baris yang cocok dengan pencarian/filter dan pil
 
 Font DejaVu Sans disertakan beserta lisensinya. Karakter di luar cakupan font, misalnya sebagian emoji atau aksara, ditulis sebagai kode Unicode seperti `[U+1F600]` agar tidak hilang tanpa penjelasan. Teks asli di aplikasi tidak berubah.
 
+## Studio sertifikat
+
+Buka tab **Sertifikat** untuk membuat PDF A4 mendatar tanpa konfigurasi tambahan.
+
+1. Pilih **Klasik Emas, Modern Biru, Elegan Hijau, atau Minimal**. Mengganti template mempertahankan teks dan gambar, serta menerapkan warna bawaan template baru. Warna teks dan aksen dapat diubah sendiri.
+2. Isi penerima manual, satu nama per baris, atau `Nama | Grup`. Untuk memakai data peserta, unggah dan periksa file pada tab **File peserta**, lalu kembali ke **Sertifikat** dan pilih nama melalui pencarian/checkbox. Pilihan mencakup seluruh file dan terpisah dari filter maupun peringkat analisis; urutan nomor mengikuti urutan file. File atau pemetaan baru dan pemeriksaan ulang mengosongkan pilihan penerima.
+3. Edit penyelenggara, judul, subjudul, pengantar, kegiatan, isi, tempat, tanggal, nomor awal/pola, dan catatan bawah. Teks dinamis mendukung `{nama}`, `{grup}`, `{acara}`, `{penyelenggara}`, `{tanggal}`, `{tempat}`, `{nomor}`, `{tahun}`, dan `{urutan}`. Pola nomor hanya mendukung `{tahun}` dan `{urutan}`; ekspor massal memerlukan `{urutan}` atau pola kosong. Nomor tidak disimpan pada registri penerbitan.
+4. Unggah maksimal dua logo dan dua gambar tanda tangan dalam PNG/JPG, maksimal 2 MB per gambar. Atur nama/jabatan penandatangan; penandatangan kedua opsional. Gambar dipertahankan proporsinya. Gambar tanda tangan adalah elemen visual, bukan tanda tangan digital tersertifikasi.
+5. Periksa setiap penerima melalui panah pratinjau. **PDF penerima ini** mengunduh satu halaman dengan nomor sesuai pratinjau. **Unduh PDF** membuat satu dokumen dengan satu penerima per halaman, maksimal 200 penerima per unduhan. Ukuran teks menyesuaikan ruang; teks berlebih atau karakter di luar cakupan font menampilkan pesan agar diperbaiki sebelum ekspor.
+6. **Simpan desain** mengunduh JSON berisi template, warna, teks, logo, dan gambar tanda tangan, tanpa daftar penerima. **Muat desain** membuka kembali file tersebut. Desain bertahan saat berpindah tab; memuat ulang halaman menghapus pekerjaan yang belum disimpan.
+
+Pratinjau SVG dan PDF memakai geometri serta pengukuran font yang sama. Pemrosesan penerima, gambar, dan ekspor berlangsung di browser, tanpa API key atau pengunggahan ke server. Sertifikat diberikan kepada penerima yang dipilih pengguna, tanpa keputusan otomatis berdasarkan skor kualitas atau indikasi AI.
+
 ## Batas metode dan data
 
 Telaah menggunakan aturan bahasa, **bukan model deteksi AI terkalibrasi**. Tidak ada klaim akurasi deteksi, probabilitas AI, atau vonis kepengarangan. Peringkat kualitas berasal dari rubrik terpisah dan tetap memerlukan tinjauan reviewer. Aturan dapat menandai teks manusia dan melewatkan teks AI. Durasi, teks pendek, serta nada kritis tidak menjadi dasar pengurangan nilai.
@@ -111,10 +124,16 @@ Isi teks dan file diproses di browser, tanpa dikirim ke layanan AI atau disimpan
 | `components/quality-review.tsx` | Acuan tugas dan formulir penilaian reviewer |
 | `lib/import.ts` | Pembacaan XLSX/CSV dan pemetaan kolom |
 | `lib/pdf-report.ts` | Laporan PDF teks dan peserta di browser |
+| `lib/pdf-font.ts` | Pemuat font bersama dan cakupan karakter PDF |
+| `lib/certificate.ts` | Desain, penerima, variabel, dan validasi gambar sertifikat |
+| `lib/certificate-render.ts` | Tata letak bersama pratinjau dan PDF sertifikat |
+| `components/certificate-studio.tsx` | Editor template, logo, teks, penerima, simpan/muat desain |
+| `app/certificate.css` | Tampilan responsif studio sertifikat |
 | `public/fonts/` | Font PDF dan lisensi |
 | `components/ui/` | Komponen antarmuka shadcn |
 | `tests/analysis.test.mjs` | Pengujian logika, duplikasi, dan CSV |
 | `tests/pdf.test.mjs` | Ekspor hasil filter/urutan, paginasi, karakter, dan rubrik PDF |
+| `tests/certificate.test.mjs` | Validasi desain, penomoran, empat template PDF, dan batas tata letak |
 | `tests/quality.test.mjs` | Batas heuristik, kritik singkat, seri peringkat, koreksi, dan ekspor |
 | `vercel.json` | Konfigurasi Vercel |
 

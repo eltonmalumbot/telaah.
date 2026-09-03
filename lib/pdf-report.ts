@@ -1,7 +1,8 @@
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { MODEL_NOTE, type Reviewed, type TextAnalysis } from './analysis.ts';
-import { PDF_FONT_RANGES } from './pdf-font-coverage.ts';
+import { reportText } from './pdf-font.ts';
+export { loadReportFont, reportText } from './pdf-font.ts';
 import { QUALITY_NOTE, QUALITY_SCOPE, qualityScore, qualityStatus, rankQuality, type QualityAssessment } from './quality.ts';
 
 type ReportOptions = { date?: Date; fontBase64: string; quality?: QualityAssessment | null };
@@ -19,33 +20,6 @@ const NAVY: [number, number, number] = [19, 37, 65];
 const MUTED: [number, number, number] = [82, 98, 120];
 const AUTHORSHIP = 'Status AI: tidak dapat ditentukan. Pola bahasa dan duplikasi bukan bukti penggunaan AI.';
 const INTERPRETATION = 'Skor kualitas terpisah dari indikasi AI. Teks pendek, nada kritis, dan durasi tidak digunakan untuk menyimpulkan penggunaan AI atau memberi penalti otomatis pada kualitas.';
-let fontPromise: Promise<string> | undefined;
-
-/** Only the public font asset is fetched; response content stays in the browser. */
-export function loadReportFont(): Promise<string> {
-  fontPromise ??= fetch('/fonts/DejaVuSans.ttf').then(async response => {
-    if (!response.ok) throw new Error('Font laporan gagal dimuat. Periksa koneksi dan coba lagi.');
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += 8192) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-    }
-    return btoa(binary);
-  }).catch(error => {
-    fontPromise = undefined;
-    throw error;
-  });
-  return fontPromise;
-}
-
-/** Unsupported glyphs retain a readable, reversible codepoint instead of disappearing. */
-export function reportText(value: string): string {
-  return Array.from(value.replace(/\r\n?/g, '\n').replace(/\t/g, '    '), char => {
-    const point = char.codePointAt(0)!;
-    if (char === '\n' || PDF_FONT_RANGES.some(([start, end]) => point >= start && point <= end)) return char;
-    return `[U+${point.toString(16).toUpperCase().padStart(4, '0')}]`;
-  }).join('');
-}
 
 function report(orientation: 'portrait' | 'landscape', title: string, options: ReportOptions) {
   const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4', compress: true, putOnlyUsedFonts: true });
