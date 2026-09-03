@@ -55,7 +55,17 @@ npm start
 - Batas impor: 10 MB file, 60 MB isi ZIP XLSX, 10.000 baris, 64 kolom, dan 50.000 karakter per sel. Hanya lembar pertama dibaca.
 - Cari nama atau grup; filter dan urutkan hasil; buka rincian dua jawaban.
 - Bandingkan pasangan jawaban secara persis, per jawaban, serta setelah normalisasi Unicode NFKC, huruf kecil, dan spasi. Jumlah mencakup peserta yang sedang diperiksa. Teks kosong tidak dihitung sebagai duplikat.
-- Unduh hasil yang sedang difilter sebagai CSV, dengan penetralan awalan formula spreadsheet.
+- Unduh hasil yang sedang difilter dan diurutkan sebagai CSV, dengan penetralan awalan formula spreadsheet.
+- Unduh PDF teks tunggal: ringkasan, alasan, kutipan, batas interpretasi, dan seluruh teks yang diperiksa.
+- Unduh PDF peserta: seluruh hasil pencarian/filter dalam urutan tabel, termasuk halaman selanjutnya, dengan nama/grup, jumlah kata, pola, dan jumlah pasangan identik. Nomor baris bukan peringkat. Laporan mencatat sumber file, waktu, filter, cakupan data, dan batas metode.
+
+## Laporan PDF
+
+Klik **Unduh PDF** setelah memeriksa teks atau file peserta. PDF dibuat langsung di browser dengan jsPDF dan AutoTable; tidak memerlukan API key atau konfigurasi Vercel tambahan. Pembuat PDF dan font dimuat saat ekspor pertama agar tidak membebani pembukaan awal halaman. Isi respons tidak dikirim ke server saat ekspor.
+
+Laporan peserta merangkum semua baris yang cocok dengan pencarian/filter, bukan hanya 10 baris yang sedang terlihat. Urutan mengikuti tabel; jumlah pasangan identik tetap dihitung terhadap seluruh file sumber. PDF peserta berisi ringkasan temuan per peserta, sementara PDF teks tunggal menyertakan seluruh teks masukan. Unduhan dapat memuat data pribadi sesuai file masukan.
+
+Font DejaVu Sans disertakan beserta lisensinya. Karakter di luar cakupan font, misalnya sebagian emoji atau aksara, ditulis sebagai kode Unicode seperti `[U+1F600]` agar tidak hilang tanpa penjelasan. Teks asli di aplikasi tidak berubah.
 
 ## Batas metode dan data
 
@@ -74,8 +84,11 @@ Isi teks dan file diproses di browser, tanpa dikirim ke layanan AI atau disimpan
 | `app/layout.tsx` | Metadata dan bahasa Indonesia |
 | `lib/analysis.ts` | Penanda bahasa, pencocokan duplikat, dan ekspor |
 | `lib/import.ts` | Pembacaan XLSX/CSV dan pemetaan kolom |
+| `lib/pdf-report.ts` | Laporan PDF teks dan peserta di browser |
+| `public/fonts/` | Font PDF dan lisensi |
 | `components/ui/` | Komponen antarmuka shadcn |
 | `tests/analysis.test.mjs` | Pengujian logika, duplikasi, dan CSV |
+| `tests/pdf.test.mjs` | Ekspor hasil filter/urutan, paginasi, dan karakter PDF |
 | `vercel.json` | Konfigurasi Vercel |
 
 Versi ini memakai perintah Next.js standar; tidak bergantung pada Vinext, Workers, D1, atau konfigurasi Sites.
