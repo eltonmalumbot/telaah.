@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { AnalysisDashboard } from "@/components/analysis-dashboard";
 import { qualityScore, qualityStatus, rankQuality } from "@/lib/quality";
 import type { Reviewed } from "@/lib/analysis";
+import { PARTICIPANT_COMPARE_EVENT, type ParticipantCompareDetail } from "@/lib/ui-events";
 
 type StoredAnalysis = { id: string; name: string; sourceName: string; updatedAt: string; rows: Reviewed[] };
 const DB = "telaah-projects";
@@ -92,6 +93,20 @@ export function AnalysisTools({ rows, sourceName, onLoad }: { rows: Reviewed[]; 
   const top = useMemo(() => ranked.filter((row) => (row.qualityRank ?? Infinity) <= 10), [ranked]);
   const rowMap = useMemo(() => new Map(rows.map((row) => [String(row.id), row])), [rows]); const a = rowMap.get(first); const b = rowMap.get(second);
   useEffect(() => { if (projectsOpen) listProjects().then(setProjects).catch(() => setMessage("Proyek tersimpan belum dapat dibaca.")); }, [projectsOpen]);
+  useEffect(() => {
+    function openRequestedComparison(event: Event) {
+      const detail = (event as CustomEvent<ParticipantCompareDetail>).detail;
+      if (!detail) return;
+      const firstExists = rows.some((row) => row.id === detail.firstId);
+      const secondExists = rows.some((row) => row.id === detail.secondId);
+      if (!firstExists || !secondExists || detail.firstId === detail.secondId) return;
+      setFirst(String(detail.firstId));
+      setSecond(String(detail.secondId));
+      setCompareOpen(true);
+    }
+    window.addEventListener(PARTICIPANT_COMPARE_EVENT, openRequestedComparison);
+    return () => window.removeEventListener(PARTICIPANT_COMPARE_EVENT, openRequestedComparison);
+  }, [rows]);
   async function save() { const name = projectName.trim() || sourceName || "Analisis tanpa nama"; const project: StoredAnalysis = { id: crypto.randomUUID(), name: name.slice(0, 80), sourceName, updatedAt: new Date().toISOString(), rows }; await putProject(project); setProjects(await listProjects()); setProjectName(""); setMessage(`Proyek “${project.name}” disimpan.`); }
   function compareCandidate(row: Reviewed) { setFirst(String(row.id)); if (String(row.id) === second) setSecond(String(rows.find((item) => item.id !== row.id)?.id ?? "")); setTopOpen(false); setCompareOpen(true); }
   return <>
