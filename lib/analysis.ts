@@ -1,10 +1,15 @@
 import { assessQuality, qualityScore, qualityStatus, type QualityAssessment } from './quality.ts';
 export type Signal = { id: string; title: string; explanation: string; evidence: string[]; caution: string };
 export type TextAnalysis = { words: number; characters: number; sentences: number; signals: Signal[]; limited: boolean; label: string };
-export type Participant = { id: number; name: string; group: string; email?: string; response1: string; response2: string; duration: string };
-export type Reviewed = Participant & { analysis: TextAnalysis; exactCount: number; similarCount: number; response1Count: number; response2Count: number; quality?: QualityAssessment | null; qualityRank?: number };
+export type Participant = { id: number; name: string; group: string; email?: string; response1: string; response2: string; responses?: string[]; duration: string };
+export type Reviewed = Participant & { analysis: TextAnalysis; exactCount: number; similarCount: number; response1Count: number; response2Count: number; responseCounts?: number[]; quality?: QualityAssessment | null; qualityRank?: number };
 export const MODEL_NOTE = 'Metode aturan bahasa v1.0. Belum menggunakan model deteksi AI yang terkalibrasi. Hasil bukan probabilitas penggunaan AI.';
 export function countWords(text: string): number { return text.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)?.length ?? 0; }
+
+export function participantResponses(row: Participant): string[] {
+  if (row.responses?.length) return row.responses;
+  return [row.response1, row.response2];
+}
 
 export function analyzeText(input: string): TextAnalysis {
   const text = input.trim();
@@ -24,7 +29,7 @@ export function analyzeText(input: string): TextAnalysis {
 }
 
 const normalized = (s: string) => s.normalize('NFKC').toLocaleLowerCase('id').replace(/\s+/g,' ').trim();
-const pair = (r: Participant, norm=false) => JSON.stringify(norm ? [normalized(r.response1),normalized(r.response2)] : [r.response1,r.response2]);
+const pair = (r: Participant, norm=false) => JSON.stringify(participantResponses(r).map(value => norm ? normalized(value) : value));
 function increment(m: Map<string,number>, key: string) { m.set(key,(m.get(key)??0)+1); }
 export type MatchKind = 'exact' | 'normalized' | 'response1' | 'response2';
 /** Pass the complete imported file, before table filtering or pagination. Includes the selected response. */
@@ -33,18 +38,25 @@ export function matchingParticipants<T extends Participant>(rows: T[], selected:
     if (!selected[kind].trim()) return [];
     return rows.filter(row => row[kind] === selected[kind]);
   }
-  if (!selected.response1.trim() && !selected.response2.trim()) return [];
+  if (!participantResponses(selected).some(value => value.trim())) return [];
   const key = pair(selected, kind === 'normalized');
-  return rows.filter(row => (row.response1.trim() || row.response2.trim()) && pair(row, kind === 'normalized') === key);
+  return rows.filter(row => participantResponses(row).some(value => value.trim()) && pair(row, kind === 'normalized') === key);
 }
 export function analyzeBatch(rows: Participant[], prompt = ''): Reviewed[] {
-  const exact=new Map<string,number>(), similar=new Map<string,number>(), a=new Map<string,number>(),b=new Map<string,number>();
+  const exact=new Map<string,number>(), similar=new Map<string,number>();
+  const maxResponses=Math.max(2,...rows.map(row=>participantResponses(row).length));
+  const responseMaps=Array.from({length:maxResponses},()=>new Map<string,number>());
   for(const r of rows) {
-    if(r.response1.trim() || r.response2.trim()) { increment(exact,pair(r)); increment(similar,pair(r,true)); }
-    if(r.response1.trim()) increment(a,r.response1);
-    if(r.response2.trim()) increment(b,r.response2);
+    const responses=participantResponses(r);
+    if(responses.some(value=>value.trim())) { increment(exact,pair(r)); increment(similar,pair(r,true)); }
+    responses.forEach((value,index)=>{ if(value.trim()) increment(responseMaps[index],value); });
   }
-  return rows.map(r=>({...r, quality:assessQuality([r.response1,r.response2].filter(Boolean).join('\n\n'),prompt), analysis:analyzeText([r.response1,r.response2].filter(Boolean).join('\n\n')), exactCount:exact.get(pair(r))??0, similarCount:similar.get(pair(r,true))??0, response1Count:r.response1.trim()?(a.get(r.response1)??0):0, response2Count:r.response2.trim()?(b.get(r.response2)??0):0}));
+  return rows.map(r=>{
+    const responses=participantResponses(r);
+    const responseCounts=responses.map((value,index)=>value.trim()?(responseMaps[index]?.get(value)??0):0);
+    const combined=responses.filter(Boolean).join('\n\n');
+    return {...r,responses,quality:assessQuality(combined,prompt),analysis:analyzeText(combined),exactCount:exact.get(pair(r))??0,similarCount:similar.get(pair(r,true))??0,response1Count:responseCounts[0]??0,response2Count:responseCounts[1]??0,responseCounts};
+  });
 }
 
 export function csvSafe(value: unknown) {
@@ -53,6 +65,8 @@ export function csvSafe(value: unknown) {
  return '"'+safe.replace(/"/g,'""')+'"';
 }
 export function exportCSV(rows: Reviewed[]) {
- const header=['Nama','Grup','Email','Jumlah kata','Jumlah pola bahasa','Pola ditandai','Status AI','Pasangan identik (termasuk peserta)','Sama setelah normalisasi (termasuk peserta)','Jawaban 1 identik','Jawaban 2 identik','Durasi sumber','Jawaban 1','Jawaban 2','Peringkat kualitas dalam filter','Skor rubrik /100','Status penilaian kualitas','Acuan tugas','Relevansi /4','Refleksi /4','Contoh konkret /4','Rencana tindakan /4','Catatan reviewer','Alasan dan kutipan saran awal'];
- return '\ufeff'+[header,...rows.map(r=>[r.name,r.group,r.email??'',r.analysis.words,r.analysis.signals.length,r.analysis.signals.map(s=>s.title).join('; '),'Tidak dapat ditentukan',r.exactCount,r.similarCount,r.response1Count,r.response2Count,r.duration,r.response1,r.response2,r.qualityRank??'',r.quality?qualityScore(r.quality):'',r.quality?qualityStatus(r.quality):'Belum dinilai',r.quality?.prompt??'',...(['relevance','reflection','concrete','action'].map(id=>r.quality?.criteria.find(item=>item.id===id)?.level??'')),r.quality?.reviewerNote??'',r.quality?.criteria.map(item=>`${item.title}: ${item.explanation} Kutipan: ${item.evidence.join(' | ')}`).join('\n')??''])].map(row=>row.map(csvSafe).join(',')).join('\r\n');
+ const maxResponses=Math.max(2,...rows.map(row=>participantResponses(row).length));
+ const extraResponseHeaders=Array.from({length:Math.max(0,maxResponses-2)},(_,index)=>`Jawaban ${index+3}`);
+ const header=['Nama','Grup','Email','Jumlah kata','Jumlah pola bahasa','Pola ditandai','Status AI','Pasangan identik (termasuk peserta)','Sama setelah normalisasi (termasuk peserta)','Jawaban 1 identik','Jawaban 2 identik','Durasi sumber','Jawaban 1','Jawaban 2',...extraResponseHeaders,'Peringkat kualitas dalam filter','Skor rubrik /100','Status penilaian kualitas','Acuan tugas','Relevansi /4','Refleksi /4','Contoh konkret /4','Rencana tindakan /4','Catatan reviewer','Alasan dan kutipan saran awal'];
+ return '\ufeff'+[header,...rows.map(r=>{const responses=participantResponses(r);return [r.name,r.group,r.email??'',r.analysis.words,r.analysis.signals.length,r.analysis.signals.map(s=>s.title).join('; '),'Tidak dapat ditentukan',r.exactCount,r.similarCount,r.response1Count,r.response2Count,r.duration,responses[0]??'',responses[1]??'',...responses.slice(2),...Array(Math.max(0,maxResponses-responses.length)).fill(''),r.qualityRank??'',r.quality?qualityScore(r.quality):'',r.quality?qualityStatus(r.quality):'Belum dinilai',r.quality?.prompt??'',...(['relevance','reflection','concrete','action'].map(id=>r.quality?.criteria.find(item=>item.id===id)?.level??'')),r.quality?.reviewerNote??'',r.quality?.criteria.map(item=>`${item.title}: ${item.explanation} Kutipan: ${item.evidence.join(' | ')}`).join('\n')??''];})].map(row=>row.map(csvSafe).join(',')).join('\r\n');
 }
