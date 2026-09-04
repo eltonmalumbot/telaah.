@@ -61,14 +61,14 @@ npm start
 - Unduh hasil yang sedang difilter dan diurutkan sebagai CSV, dengan penetralan awalan formula spreadsheet.
 - Unduh PDF teks tunggal: ringkasan, alasan, kutipan, batas interpretasi, dan seluruh teks yang diperiksa.
 - Unduh PDF peserta: seluruh hasil pencarian/filter dalam urutan tabel, termasuk halaman selanjutnya, dengan nama/grup, jumlah kata, pola, dan jumlah pasangan identik. Nomor baris bukan peringkat. Laporan mencatat sumber file, waktu, filter, cakupan data, dan batas metode.
-- Bandingkan dua peserta secara berdampingan, termasuk nilai kualitas, pola bahasa, duplikasi, jumlah kata, dan kedua jawaban.
+- Bandingkan dua peserta secara berdampingan menggunakan pencarian nama, grup, email, atau nomor respons; tampilkan nilai kualitas per aspek, pola bahasa, duplikasi, jumlah kata, dan kedua jawaban.
 - Simpan hasil analisis lengkap sebagai proyek lokal melalui IndexedDB, lalu muat kembali tanpa mengimpor ulang file.
 
 ## Analisis kualitas dan kandidat jawaban terbaik
 
 1. Isi **Pertanyaan / tujuan tugas** di bagian **Cari jawaban terbaik**. Gunakan topik yang sesuai dengan tugas; tombol **Contoh acuan** menyediakan contoh refleksi podcast. Acuan kosong tidak menghasilkan nilai kualitas.
 2. Klik **Periksa teks** atau **Periksa respons** setelah mengimpor file. Kedua kolom jawaban dinilai bersama sebagai satu refleksi; bukan nilai terpisah per pertanyaan. Mengubah acuan berlaku pada pemeriksaan berikutnya. Pemeriksaan ulang mengganti saran/koreksi sebelumnya.
-3. Untuk file peserta, gunakan pencarian/grup dan filter, lalu **Urutkan kualitas** atau **Kandidat Top 10**. Peringkat dihitung dalam filter aktif. Nilai sama berbagi peringkat; peserta yang seri di batas kesepuluh ikut ditampilkan, sehingga jumlahnya dapat melebihi 10. Teks kosong tidak diberi peringkat.
+3. Untuk file peserta, gunakan pencarian/grup dan filter, lalu **Urutkan kualitas** atau **Kandidat Top 10**. Klik kartu Kandidat Top 10 untuk melihat skor total, skor empat aspek rubrik, kekuatan, area yang perlu ditinjau, dan status konfirmasi setiap peserta. Peringkat dihitung dalam filter aktif. Nilai sama berbagi peringkat; peserta yang seri di batas kesepuluh ikut ditampilkan, sehingga jumlahnya dapat melebihi 10. Teks kosong tidak diberi peringkat.
 4. Buka detail peserta atau rubrik teks tunggal. Periksa kutipan dan panduan setiap aspek, koreksi tingkat 0–4, tambahkan catatan, lalu **Konfirmasi penilaian**. Perubahan langsung memperbarui skor dan peringkat. Filter **Penilaian dikonfirmasi** memisahkan hasil yang sudah ditinjau. Konfirmasi merupakan penanda lokal, bukan tanda tangan atau verifikasi identitas reviewer.
 5. **Unduh PDF/CSV** menyertakan skor, peringkat file sesuai filter, acuan, status penilaian, dan catatan reviewer. Panel ringkasan menampilkan kandidat Top 10 dan jumlah penilaian yang telah dikonfirmasi. Gunakan **Proyek analisis** untuk menyimpan data dan koreksi di browser ini.
 
