@@ -2,7 +2,19 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { BadgeCheck, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
+import { BadgeCheck, Download, KeyRound, ShieldCheck, ShieldOff } from 'lucide-react';
+import { exportIssuerRecoveryBackup } from '@/lib/certificate-identity';
+
+function saveRecoveryBackup() {
+  if (!window.confirm('Backup pemulihan mengandung private key penerbit lokal. Simpan offline dan jangan kirim atau unggah file ini. Lanjutkan?')) return;
+  const blob = new Blob([exportIssuerRecoveryBackup()], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `telaah-issuer-recovery-${new Date().toISOString().slice(0, 10)}-RAHASIA.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export default function IssuerPage() {
   const [trusted, setTrusted] = useState<boolean | null>(null);
@@ -36,6 +48,8 @@ export default function IssuerPage() {
       <p className="verify-note">Aktivasi ini hanya dilakukan satu kali. Setelah aktif, pembuatan sertifikat tetap sederhana: pilih peserta → buat PDF. Sistem otomatis memilih verifikasi resmi; jika layanan registry tidak tersedia, mode lokal tetap menjadi cadangan.</p>
       {!trusted && <div className="issuer-setup"><label htmlFor="issuer-key">Kunci admin sertifikat</label><input id="issuer-key" type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} placeholder="CERTIFICATE_ADMIN_KEY"/><button type="button" disabled={busy || !key.trim()} onClick={activate}><KeyRound size={16}/>{busy ? 'Mengaktifkan…' : 'Aktifkan perangkat'}</button></div>}
       {trusted && <button type="button" className="verify-link-button" disabled={busy} onClick={deactivate}><ShieldOff size={16}/>Nonaktifkan perangkat ini</button>}
+      <button type="button" className="verify-link-button" onClick={saveRecoveryBackup}><Download size={16}/>Backup pemulihan penerbit lokal</button>
+      <p className="verify-note">Backup pemulihan hanya diperlukan bila Anda memakai mode sertifikat lokal dan ingin mempertahankan identitas penerbit setelah pindah browser/perangkat. File tersebut bersifat rahasia.</p>
       {message && <p className="verify-note">{message}</p>}
       <Link href="/">Kembali ke Telaah</Link>
     </section>
