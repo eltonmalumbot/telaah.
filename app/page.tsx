@@ -19,6 +19,7 @@ import {
   Layers3,
   LoaderCircle,
   LockKeyhole,
+  Plus,
   ScanText,
   Search,
   ShieldCheck,
@@ -72,6 +73,7 @@ import {
   analyzeBatch,
   countWords,
   exportCSV,
+  participantResponses,
   MODEL_NOTE,
   type Reviewed,
   type TextAnalysis,
@@ -119,7 +121,7 @@ function download(content: string, filename: string) {
 }
 function template() {
   download(
-    '\ufeffNama,Grup,Email,Jawaban 1,Jawaban 2,Durasi\r\nPeserta Contoh,Unit A,peserta@example.com,"Tuliskan refleksi di sini.","Tuliskan rencana tindakan di sini.",5 menit',
+    '\ufeffNama,Grup,Email,Response 1,Response 2,Durasi\r\nPeserta Contoh,Unit A,peserta@example.com,"Tuliskan refleksi di sini.","Tuliskan rencana tindakan di sini.",5 menit',
     "template-telaah.csv",
   );
 }
@@ -653,9 +655,9 @@ function ResultsTable({
       </div>
       <p className="table-note">
         <Info size={16} />
-        Jumlah identik menghitung pasangan kolom jawaban yang sama persis,
-        termasuk peserta tersebut, pada seluruh file sebelum filter. Duplikasi
-        tidak membuktikan penggunaan AI.
+        Jumlah identik menghitung seluruh kolom jawaban yang dipetakan sebagai
+        satu rangkaian, termasuk peserta tersebut, pada seluruh file sebelum
+        filter. Duplikasi tidak membuktikan penggunaan AI.
       </p>
       <Sheet
         open={!!selected}
@@ -705,14 +707,12 @@ function ResultsTable({
                 />
               )}
               <section className="original-response">
-                <h3>Jawaban 1</h3>
-                <p>{selected.response1 || "Tidak ada jawaban."}</p>
-                {selected.response2 && (
-                  <>
-                    <h3>Jawaban 2</h3>
-                    <p>{selected.response2}</p>
-                  </>
-                )}
+                {participantResponses(selected).map((response, index) => (
+                  <div key={index}>
+                    <h3>Jawaban {index + 1}</h3>
+                    <p>{response || "Tidak ada jawaban."}</p>
+                  </div>
+                ))}
               </section>
             </div>
           )}
@@ -742,6 +742,7 @@ export default function Home() {
     email: "",
     response1: "",
     response2: "",
+    responses: ["", ""],
     duration: "",
   });
   const [rows, setRows] = useState<Reviewed[]>([]);
@@ -821,13 +822,13 @@ export default function Home() {
       setBusy(false);
     }
   }
-  function mapSelect(key: keyof Mapping, label: string, required = false) {
+  function mapSelect(
+    key: "name" | "group" | "email" | "duration",
+    label: string,
+  ) {
     return (
       <div className="mapping-field">
-        <label id={`label-${key}`}>
-          {label}
-          {required && <span> *</span>}
-        </label>
+        <label id={`label-${key}`}>{label}</label>
         <Select
           value={mapping[key] || "none"}
           onValueChange={(value) => {
@@ -836,6 +837,47 @@ export default function Home() {
           }}
         >
           <SelectTrigger aria-labelledby={`label-${key}`}>
+            <SelectValue placeholder="Pilih kolom" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Tidak digunakan</SelectItem>
+            {imported?.headers.map((h, i) => (
+              <SelectItem key={i} value={String(i)}>
+                {h} ({i + 1})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+  function responseSelect(column: string, index: number) {
+    const label = `Jawaban ${index + 1}`;
+    const required = index === 0;
+    return (
+      <div className="mapping-field" key={`response-${index}`}>
+        <label id={`label-response-${index}`}>
+          {label}
+          {required && <span> *</span>}
+        </label>
+        <Select
+          value={column || "none"}
+          onValueChange={(value) => {
+            const next = value === "none" ? "" : value;
+            setMapping((current) => {
+              const responses = [...current.responses];
+              responses[index] = next;
+              return {
+                ...current,
+                responses,
+                response1: responses[0] ?? "",
+                response2: responses[1] ?? "",
+              };
+            });
+            setRows([]);
+          }}
+        >
+          <SelectTrigger aria-labelledby={`label-response-${index}`}>
             <SelectValue placeholder="Pilih kolom" />
           </SelectTrigger>
           <SelectContent>
@@ -1176,26 +1218,47 @@ export default function Home() {
                     <p>
                       Periksa pilihan otomatis. Pada ekspor Moodle, nama peserta
                       biasanya ada di <b>Last name</b> dan grup di{" "}
-                      <b>First name</b>.
+                      <b>First name</b>. Kolom <b>Response 1, Response 2, Response 3</b>,
+                      dan seterusnya dideteksi otomatis.
                     </p>
                   </div>
-              <div className="mapping-grid">
-                {mapSelect("name", "Nama peserta")}
-                {mapSelect("group", "Grup / bagian")}
-                {mapSelect("email", "Email")}
-                {mapSelect("response1", "Jawaban 1", true)}
-                    {mapSelect("response2", "Jawaban 2")}
+                  <div className="mapping-grid">
+                    {mapSelect("name", "Nama peserta")}
+                    {mapSelect("group", "Grup / bagian")}
+                    {mapSelect("email", "Email")}
+                    {mapping.responses.map((column, index) =>
+                      responseSelect(column, index),
+                    )}
                     {mapSelect("duration", "Durasi")}
                   </div>
                   <div className="mapping-action">
-                    <p>
-                      Duplikasi dibandingkan pada seluruh file.
-                      <br />
-                      Durasi tidak digunakan sebagai indikator AI.
-                    </p>
+                    <div>
+                      <p>
+                        {mapping.responses.filter(Boolean).length.toLocaleString("id")}{" "}
+                        kolom jawaban dipakai dalam pemeriksaan. Duplikasi pasangan
+                        membandingkan seluruh jawaban yang dipetakan.
+                        <br />
+                        Durasi tidak digunakan sebagai indikator AI.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setMapping((current) => ({
+                            ...current,
+                            responses: [...current.responses, ""],
+                          }));
+                          setRows([]);
+                        }}
+                      >
+                        <Plus size={15} />
+                        Tambah Jawaban
+                      </Button>
+                    </div>
                     <Button
                       className="analyze-button"
-                      disabled={busy || !mapping.response1}
+                      disabled={busy || !mapping.responses[0]}
                       onClick={inspectFile}
                     >
                       {busy ? (
@@ -1308,11 +1371,11 @@ export default function Home() {
               <div>
                 <h3>Kecocokan teks dalam satu file</h3>
                 <p>
-                  Jawaban 1 dan 2 dibandingkan sebagai pasangan. Kecocokan
-                  persis tidak mengubah huruf atau spasi. Tampilan detail juga
-                  menghitung kecocokan setelah Unicode, huruf kecil, dan spasi
-                  diseragamkan. Jika hanya satu kolom dipilih, teks itu yang
-                  dibandingkan. Teks kosong tidak dianggap duplikat.
+                  Semua kolom Jawaban yang dipetakan dibandingkan sebagai satu
+                  rangkaian. Kecocokan persis tidak mengubah huruf atau spasi.
+                  Tampilan detail juga menghitung kecocokan setelah Unicode,
+                  huruf kecil, dan spasi diseragamkan. Teks kosong tidak dianggap
+                  duplikat.
                 </p>
                 <p>
                   Ini bukan pencarian plagiarisme di internet atau pendeteksi
@@ -1333,10 +1396,10 @@ export default function Home() {
                   untuk memeriksa bukti, mengoreksi tingkat 0–4, dan
                   mengonfirmasi penilaian. Peringkat dalam filter aktif
                   menggunakan skor rubrik saat ini, termasuk koreksi reviewer.
-                  Nilai seri berbagi peringkat. Dua jawaban digabung sebagai
-                  satu refleksi; ini bukan pemeriksaan kebenaran fakta atau
-                  nilai final. Durasi, panjang teks, nada kritis, duplikasi, dan
-                  indikasi AI tidak memberi penalti otomatis.
+                  Nilai seri berbagi peringkat. Seluruh jawaban yang dipetakan
+                  digabung sebagai satu refleksi; ini bukan pemeriksaan kebenaran
+                  fakta atau nilai final. Durasi, panjang teks, nada kritis,
+                  duplikasi, dan indikasi AI tidak memberi penalti otomatis.
                 </p>
               </div>
             </section>

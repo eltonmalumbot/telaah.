@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {analyzeText,analyzeBatch,exportCSV,matchingParticipants} from '../lib/analysis.ts';
-import {parseCSV,autoMapping,toParticipants} from '../lib/import.ts';
+import {analyzeText,analyzeBatch,exportCSV,matchingParticipants,participantResponses} from '../lib/analysis.ts';
+import {parseCSV,autoMapping,toParticipants,detectedResponseColumns} from '../lib/import.ts';
 
 const participant=(id,a,b='',duration='')=>({id,name:`Peserta ${id}`,group:'A',response1:a,response2:b,duration});
 test('kritik singkat tidak dikenai dugaan AI atau skor kualitas',()=>{
@@ -60,4 +60,23 @@ test('peserta di luar filter tetap dapat dibuka dan nama sama tidak digabung',()
  assert.notEqual(matches[0].id,matches[1].id);
  assert.equal(matches[0].name,matches[1].name);
  assert.equal(rows.find(row=>row.id===matches.at(-1).id)?.name,'Peserta 185');
+});
+
+test('Response 1 sampai N terdeteksi, dipetakan, dianalisis, dan diekspor',()=>{
+ const headers=['Last name','First name','Email address','Duration','Response 4','Response 2','Response 1','Response 3'];
+ assert.deepEqual(detectedResponseColumns(headers),['6','5','7','4']);
+ const mapping=autoMapping(headers);
+ assert.deepEqual(mapping.responses,['6','5','7','4']);
+ const data={headers,rows:[['Budi','BPA','budi@example.com','5 menit','Empat','Dua','Satu','Tiga']],sheet:'CSV'};
+ const participants=toParticipants(data,mapping);
+ assert.deepEqual(participantResponses(participants[0]),['Satu','Dua','Tiga','Empat']);
+ const reviewed=analyzeBatch(participants,'Satu Dua Tiga Empat');
+ assert.equal(reviewed[0].analysis.words,4);
+ const exported=parseCSV(exportCSV(reviewed));
+ assert.equal(exported[0].includes('Jawaban 3'),true);
+ assert.equal(exported[0].includes('Jawaban 4'),true);
+ assert.equal(exported[1][12],'Satu');
+ assert.equal(exported[1][13],'Dua');
+ assert.equal(exported[1][14],'Tiga');
+ assert.equal(exported[1][15],'Empat');
 });
