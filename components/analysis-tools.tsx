@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { AnalysisDashboard } from "@/components/analysis-dashboard";
+import { AIAssistedReview } from "@/components/ai-assisted-review";
 import { qualityScore, qualityStatus, rankQuality } from "@/lib/quality";
 import type { Reviewed } from "@/lib/analysis";
 
@@ -98,7 +99,7 @@ export function AnalysisTools({ rows, sourceName, onLoad }: { rows: Reviewed[]; 
     <div className="analysis-summary">
       <button type="button" className="analysis-summary-stat" onClick={() => setTopOpen(true)} disabled={!top.length}><Trophy size={19} /><strong>{top.length}</strong><span>Kandidat Top 10</span><small>Lihat rincian penilaian</small></button>
       <div><Save size={19} /><strong>{rows.filter((row) => row.quality?.confirmed).length}</strong><span>Nilai dikonfirmasi</span></div>
-      <div className="analysis-tool-actions"><Button size="sm" onClick={() => setDashboardOpen(true)}><BarChart3 size={15} />Dashboard analisis</Button><Button size="sm" variant="outline" onClick={() => setCompareOpen(true)}><GitCompareArrows size={15} />Bandingkan 2 peserta</Button><Button size="sm" variant="outline" onClick={() => setProjectsOpen(true)}><Archive size={15} />Proyek analisis</Button></div>
+      <div className="analysis-tool-actions"><Button size="sm" onClick={() => setDashboardOpen(true)}><BarChart3 size={15} />Dashboard analisis</Button><AIAssistedReview rows={rows} sourceName={sourceName} /><Button size="sm" variant="outline" onClick={() => setCompareOpen(true)}><GitCompareArrows size={15} />Bandingkan 2 peserta</Button><Button size="sm" variant="outline" onClick={() => setProjectsOpen(true)}><Archive size={15} />Proyek analisis</Button></div>
     </div>
 
     <Dialog open={dashboardOpen} onOpenChange={setDashboardOpen}><DialogContent className="analysis-tools-dialog dashboard-dialog"><DialogHeader><DialogTitle>Dashboard Analisis</DialogTitle><DialogDescription>Ringkasan interaktif seluruh respons, kualitas jawaban, pola bahasa, duplikasi, grup, dan progres reviewer.</DialogDescription></DialogHeader><AnalysisDashboard rows={rows} sourceName={sourceName} /></DialogContent></Dialog>
