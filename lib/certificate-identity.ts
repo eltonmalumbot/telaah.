@@ -1,6 +1,6 @@
 import { certificateVariables, type CertificateDesign, type CertificateRecipient } from './certificate.ts';
 
-export type CertificateClaim = { v: 1; id: string; name: string; group: string; event: string; organizer: string; date: string; number: string; issuedAt: string; issuer: string; publicKey: JsonWebKey };
+export type CertificateClaim = { v: 1; id: string; certificateId?: string; name: string; group: string; event: string; organizer: string; date: string; number: string; issuedAt: string; issuer: string; publicKey: JsonWebKey };
 export type IssuanceRecord = CertificateClaim & { email: string; token: string; fingerprint: string; status: 'active' | 'revoked'; revokedAt?: string };
 type StoredIdentity = { name: string; publicKey: JsonWebKey; privateKey: JsonWebKey };
 const IDENTITY_KEY = 'telaah-certificate-identity-v1';
@@ -20,6 +20,11 @@ async function digest(value: string): Promise<string> {
   return Array.from(bytes.slice(0, 10), byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase().match(/.{1,4}/g)!.join('-');
 }
 function publicMaterial(key: JsonWebKey) { return JSON.stringify({ kty: key.kty, crv: key.crv, x: key.x, y: key.y }); }
+function makeCertificateId(date: string): string {
+  const year = /^\d{4}/.exec(date)?.[0] ?? String(new Date().getFullYear());
+  const bytes = new Uint8Array(5); crypto.getRandomValues(bytes);
+  return `TLH-${year}-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
 
 export async function getIssuerIdentity(name: string): Promise<StoredIdentity & { fingerprint: string }> {
   const saved = localStorage.getItem(IDENTITY_KEY);
@@ -35,66 +40,28 @@ export async function getIssuerIdentity(name: string): Promise<StoredIdentity & 
   return { ...identity, fingerprint: await digest(publicMaterial(identity.publicKey)) };
 }
 
-/**
- * New certificates use the trusted Telaah server signer. The admin key is only
- * sent to the issuance endpoint and is never embedded into the QR token.
- * Existing v1 local certificates remain verifiable through verifyCertificateToken.
- */
 export async function issueCertificates(design: CertificateDesign, recipients: CertificateRecipient[], origin: string): Promise<{ recipients: CertificateRecipient[]; records: IssuanceRecord[] }> {
-  let adminKey = sessionStorage.getItem('telaah-certificate-admin-key') ?? '';
-  if (!adminKey) {
-    adminKey = window.prompt('Masukkan kunci admin sertifikat untuk membuat QR verifikasi resmi.')?.trim() ?? '';
-    if (!adminKey) throw new Error('Penerbitan QR dibatalkan. Masukkan kunci admin sertifikat untuk membuat QR resmi.');
-    sessionStorage.setItem('telaah-certificate-admin-key', adminKey);
+  const identity = await getIssuerIdentity(design.organizer);
+  const privateKey = await crypto.subtle.importKey('jwk', identity.privateKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const issuedAt = new Date().toISOString(); const records: IssuanceRecord[] = [];
+  for (let index = 0; index < recipients.length; index++) {
+    const recipient = recipients[index]; const variables = certificateVariables(design, recipient, index);
+    const id = crypto.randomUUID();
+    const claim: CertificateClaim = { v: 1, id, certificateId: makeCertificateId(design.date), name: recipient.name, group: recipient.group, event: design.event, organizer: design.organizer, date: design.date, number: variables.nomor, issuedAt, issuer: identity.name, publicKey: identity.publicKey };
+    const payload = base64url(encoder.encode(JSON.stringify(claim)));
+    const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, privateKey, encoder.encode(payload)));
+    const token = `${payload}.${base64url(signature)}`;
+    records.push({ ...claim, email: recipient.email ?? '', token, fingerprint: identity.fingerprint, status: 'active' });
   }
-  const items = recipients.map((recipient, index) => ({
-    clientId: recipient.id,
-    name: recipient.name,
-    group: recipient.group,
-    email: recipient.email ?? '',
-    number: certificateVariables(design, recipient, index).nomor,
-  }));
-  const response = await fetch('/api/certificates/issue', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-admin-key': adminKey },
-    body: JSON.stringify({ organizer: design.organizer, event: design.event, date: design.date, recipients: items }),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (response.status === 401) sessionStorage.removeItem('telaah-certificate-admin-key');
-    throw new Error(body.error || 'QR verifikasi resmi belum dapat diterbitkan.');
-  }
-  const official = body.records as Array<{ id: string; certificateId: string; name: string; group: string; event: string; organizer: string; date: string; number: string; issuedAt: string; email: string; token: string; fingerprint: string; status: 'active' }>;
-  const records = official.map((item) => ({
-    v: 1 as const,
-    id: item.id,
-    name: item.name,
-    group: item.group,
-    event: item.event,
-    organizer: item.organizer,
-    date: item.date,
-    number: item.number,
-    issuedAt: item.issuedAt,
-    issuer: 'Telaah Official',
-    publicKey: {},
-    email: item.email,
-    token: item.token,
-    fingerprint: item.fingerprint,
-    status: 'active' as const,
-  }));
   saveIssuances([...records, ...loadIssuances()]);
-  return {
-    records,
-    recipients: recipients.map((recipient, index) => ({ ...recipient, verificationUrl: `${origin}/verify?token=${encodeURIComponent(official[index].token)}` })),
-  };
+  return { records, recipients: recipients.map((recipient, index) => ({ ...recipient, certificateId: records[index].certificateId, verificationUrl: `${origin}/verify#${records[index].token}` })) };
 }
 
-/** Verify legacy v1 self-signed certificate tokens. */
 export async function verifyCertificateToken(token: string): Promise<{ valid: boolean; claim?: CertificateClaim; fingerprint?: string; error?: string }> {
   try {
     const [payload, signature, extra] = token.split('.'); if (!payload || !signature || extra) throw new Error('Format kode verifikasi tidak valid.');
     const claim = JSON.parse(new TextDecoder().decode(fromBase64url(payload))) as CertificateClaim;
-    if (claim.v !== 1 || !claim.id || !claim.name || !claim.publicKey?.x || !claim.publicKey?.y) throw new Error('Bukan token sertifikat lokal versi lama.');
+    if (claim.v !== 1 || !claim.id || !claim.name || !claim.publicKey?.x || !claim.publicKey?.y) throw new Error('Data sertifikat tidak lengkap.');
     const publicKey = await crypto.subtle.importKey('jwk', claim.publicKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
     const valid = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, publicKey, fromBase64url(signature), encoder.encode(payload));
     return { valid, claim, fingerprint: await digest(publicMaterial(claim.publicKey)), error: valid ? undefined : 'Tanda tangan digital tidak cocok.' };
