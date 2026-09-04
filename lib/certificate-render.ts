@@ -162,6 +162,7 @@ function layout(doc: jsPDF, design: CertificateDesign, recipient: CertificateRec
   if (recipient.verificationUrl) {
     nodes.push({ kind: 'image', x: 263, y: 17, width: 19, height: 19, data: qrDataUrl(recipient.verificationUrl, 3, 4), format: 'GIF' });
     text('VERIFIKASI', 'Label QR', 260, 36.5, 25, 4, 5.5, 5, ink);
+    if (recipient.certificateId) text(recipient.certificateId, 'Certificate ID', 252, 40.5, 41, 4.5, 4.6, 3.5, ink);
   }
   const expand = (value: string) => certificateText(value, variables);
   text(expand(design.organizer), 'Penyelenggara', 41, 38, 215, 9, 12, 9);

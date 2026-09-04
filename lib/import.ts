@@ -79,10 +79,18 @@ export function detectedResponseColumns(headers:string[]):string[] {
  return generic>=0?[String(generic)]:[];
 }
 
+function publishResponseCount(count:number) {
+ if(typeof window==='undefined')return;
+ const safe=Math.max(1,Math.min(64,count));
+ try{localStorage.setItem('telaah-response-count',String(safe));}catch{/* Storage is optional. */}
+ window.dispatchEvent(new CustomEvent('telaah:response-count',{detail:{count:safe}}));
+}
+
 export function autoMapping(headers:string[]):Mapping {
  const locate=(names:string[])=>{ const i=headers.findIndex(h=>names.includes(h.toLowerCase().trim()));return i<0?'':String(i); };
  const detected=detectedResponseColumns(headers);
  const responses=detected.length>=2?detected:[detected[0]??'', ''];
+ publishResponseCount(Math.max(1,detected.length));
  return {
   name:locate(['last name','nama','name','nama peserta','peserta']),
   group:locate(['first name','grup','group','unit','bagian']),

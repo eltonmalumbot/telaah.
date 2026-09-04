@@ -8,6 +8,7 @@ export type QualityCriterion = {
   explanation: string;
   guidance: string;
 };
+export type QualityComponentScore = { response: number; prompt: string; score: number };
 export type QualityAssessment = {
   version: 'rubrik-refleksi-1.0';
   prompt: string;
@@ -15,13 +16,39 @@ export type QualityAssessment = {
   criteria: QualityCriterion[];
   confirmed: boolean;
   reviewerNote: string;
+  scoreOverride?: number;
+  componentScores?: QualityComponentScore[];
 };
 
 export const QUALITY_NOTE = 'Rubrik refleksi v1.0: skor awal berbasis aturan, bukan pemahaman makna atau nilai final. Empat aspek berbobot sama (25 poin), dinilai 0–4. Total dibulatkan ke 0–100. Reviewer perlu memeriksa isi dan dapat mengoreksi skor.';
 export const QUALITY_SCOPE = 'Dirancang untuk refleksi dan rencana tindakan berbahasa Indonesia. Tidak memeriksa kebenaran fakta, sinonim, ironi, atau seluruh konteks tugas. Panjang teks, kerapian, durasi, duplikasi, dan indikasi AI tidak menambah atau mengurangi skor secara langsung.';
 export const QUALITY_PROMPT_EXAMPLE = 'Bagaimana budaya inovasi membantu pekerjaan Anda? Ceritakan pengalaman konkret, pelajaran yang diperoleh, dan rencana tindakan yang akan dicoba.';
+const PROMPT_LIST_PREFIX = 'TELAAH_PROMPTS_V1:';
 const STOP_WORDS = new Set('apa apakah bagaimana mengapa kenapa kapan siapa dimana di mana jelaskan ceritakan uraikan sebutkan berikan contoh tentang dari dalam untuk dengan atau dan yang pada ini itu sebuah suatu sebagai adalah merupakan menjadi dapat bisa akan sudah telah belum tidak bukan hanya saya kami kita anda kamu mereka peserta jawaban pertanyaan refleksi podcast setelah sebelum tersebut secara terhadap melalui agar supaya lebih paling juga saja setiap hal oleh ke pun nya menurut'.split(' '));
 const tokens = (value: string) => value.normalize('NFKC').toLocaleLowerCase('id').match(/[\p{L}\p{N}]+/gu) ?? [];
+
+export function encodeQualityPrompts(prompts: string[]): string {
+  const clean = prompts.map(prompt => prompt.slice(0, 1500));
+  if (clean.length <= 1) return clean[0] ?? '';
+  return `${PROMPT_LIST_PREFIX}${JSON.stringify(clean)}`;
+}
+
+export function decodeQualityPrompts(value: string): string[] {
+  if (!value.startsWith(PROMPT_LIST_PREFIX)) return [value];
+  try {
+    const parsed = JSON.parse(value.slice(PROMPT_LIST_PREFIX.length));
+    if (!Array.isArray(parsed)) return [''];
+    const prompts = parsed.slice(0, 64).map(item => typeof item === 'string' ? item.slice(0, 1500) : '');
+    return prompts.length ? prompts : [''];
+  } catch {
+    return [''];
+  }
+}
+
+export function primaryQualityPrompt(value: string): string {
+  return decodeQualityPrompts(value).find(prompt => prompt.trim()) ?? '';
+}
+
 export function topicKeywords(prompt: string): string[] {
   return [...new Set(tokens(prompt).filter(word => word.length > 2 && !STOP_WORDS.has(word)))];
 }
@@ -43,7 +70,8 @@ function criterion(id: CriterionId, title: string, level: number, evidence: stri
 }
 
 /** Transparent lexical cues, deliberately independent of AI flags and response metadata. */
-export function assessQuality(input: string, prompt: string): QualityAssessment | null {
+export function assessQuality(input: string, promptValue: string): QualityAssessment | null {
+  const prompt = primaryQualityPrompt(promptValue);
   const keywords = topicKeywords(prompt);
   if (!input.trim() || keywords.length === 0) return null;
   const parts = [...new Set(input.split(/(?:[.!?]+(?:\s|$)|\r?\n)+/u).map(part => part.trim()).filter(Boolean))];
@@ -84,17 +112,49 @@ export function assessQuality(input: string, prompt: string): QualityAssessment 
 }
 
 export function qualityScore(assessment: QualityAssessment): number {
+  if (typeof assessment.scoreOverride === 'number') return Math.max(0, Math.min(100, Math.round(assessment.scoreOverride)));
   return Math.round(assessment.criteria.reduce((sum, item) => sum + item.level, 0) / 16 * 100);
 }
+
+/** Aggregate independently assessed Response 1..N. Final score is the arithmetic mean of available response scores. */
+export function aggregateQuality(assessments: Array<QualityAssessment | null>): QualityAssessment | null {
+  const available = assessments.map((assessment, index) => ({ assessment, index })).filter((item): item is { assessment: QualityAssessment; index: number } => !!item.assessment);
+  if (!available.length) return null;
+  const ids: CriterionId[] = ['relevance', 'reflection', 'concrete', 'action'];
+  const criteria = ids.map(id => {
+    const items = available.map(({ assessment }) => assessment.criteria.find(item => item.id === id)!).filter(Boolean);
+    const level = Math.round(items.reduce((sum, item) => sum + item.level, 0) / items.length);
+    const suggestedLevel = Math.round(items.reduce((sum, item) => sum + item.suggestedLevel, 0) / items.length);
+    return {
+      ...items[0], level, suggestedLevel,
+      evidence: available.flatMap(({ assessment, index }) => assessment.criteria.find(item => item.id === id)?.evidence.map(value => `Response ${index + 1}: ${value}`) ?? []).slice(0, 4),
+      explanation: `Ringkasan ${available.length} jawaban. Tingkat aspek ditampilkan sebagai rata-rata pembulatan; skor akhir peserta dihitung dari rata-rata skor setiap Response secara terpisah.`,
+    };
+  });
+  const componentScores = available.map(({ assessment, index }) => ({ response: index + 1, prompt: assessment.prompt, score: qualityScore(assessment) }));
+  const scoreOverride = componentScores.reduce((sum, item) => sum + item.score, 0) / componentScores.length;
+  return {
+    version: 'rubrik-refleksi-1.0',
+    prompt: componentScores.map(item => `Response ${item.response}: ${item.prompt}`).join(' | '),
+    keywords: [...new Set(available.flatMap(({ assessment }) => assessment.keywords))],
+    criteria,
+    confirmed: available.every(({ assessment }) => assessment.confirmed),
+    reviewerNote: '',
+    scoreOverride,
+    componentScores,
+  };
+}
+
 export function qualityStatus(assessment: QualityAssessment): string {
+  if (assessment.componentScores?.length) return assessment.confirmed ? 'Gabungan dikonfirmasi reviewer' : `Rata-rata ${assessment.componentScores.length} jawaban`;
   return assessment.confirmed ? 'Dikonfirmasi reviewer' : assessment.criteria.some(item => item.level !== item.suggestedLevel) ? 'Koreksi belum dikonfirmasi' : 'Skor awal otomatis';
 }
 export function updateQualityLevel(assessment: QualityAssessment, id: CriterionId, level: number): QualityAssessment {
   if (!Number.isInteger(level) || level < 0 || level > 4) throw new Error('Tingkat rubrik harus bilangan bulat 0–4.');
-  return { ...assessment, confirmed: false, criteria: assessment.criteria.map(item => item.id === id ? { ...item, level } : item) };
+  return { ...assessment, scoreOverride: undefined, componentScores: undefined, confirmed: false, criteria: assessment.criteria.map(item => item.id === id ? { ...item, level } : item) };
 }
 export function resetQuality(assessment: QualityAssessment): QualityAssessment {
-  return { ...assessment, confirmed: false, reviewerNote: '', criteria: assessment.criteria.map(item => ({ ...item, level: item.suggestedLevel })) };
+  return { ...assessment, scoreOverride: undefined, componentScores: undefined, confirmed: false, reviewerNote: '', criteria: assessment.criteria.map(item => ({ ...item, level: item.suggestedLevel })) };
 }
 
 /** Competition ranks: equal scores share rank; ties at the tenth place are retained. */
