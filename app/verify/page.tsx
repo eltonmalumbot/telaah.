@@ -51,12 +51,12 @@ export default function VerifyPage() {
         }
       }
 
-      const legacyToken = location.hash.slice(1);
-      if (!legacyToken) {
+      const token = location.hash.slice(1);
+      if (!token) {
         setState({ loading: false, valid: false, error: 'Kode verifikasi tidak ditemukan.' });
         return;
       }
-      const result = await verifyCertificateToken(legacyToken);
+      const result = await verifyCertificateToken(token);
       setState({
         loading: false,
         ...result,
@@ -68,7 +68,12 @@ export default function VerifyPage() {
   }, []);
 
   const claim = state.claim;
-  const certificateId = claim && 'certificateId' in claim ? claim.certificateId : claim?.id ? `LEGACY-${claim.id.slice(0, 8).toUpperCase()}` : '';
+  const currentLocal = !!claim && 'certificateId' in claim && !!claim.certificateId;
+  const certificateId = claim && 'certificateId' in claim && claim.certificateId
+    ? claim.certificateId
+    : claim?.id
+      ? `LEGACY-${claim.id.slice(0, 8).toUpperCase()}`
+      : '';
   const valid = state.valid && !state.revoked;
 
   return <main className="verify-page">
@@ -76,8 +81,8 @@ export default function VerifyPage() {
     <section className={`verify-card ${valid ? 'valid' : 'invalid'}`}>
       {state.loading ? <ShieldCheck size={48}/> : valid ? <CheckCircle2 size={52}/> : <ShieldAlert size={52}/>} 
       <span className="eyebrow">VERIFIKASI SERTIFIKAT</span>
-      <h1>{state.loading ? 'Memeriksa sertifikat…' : valid ? state.official ? 'Sertifikat resmi Telaah valid' : 'Tanda tangan legacy valid' : state.revoked ? 'Sertifikat dicabut pada perangkat penerbit' : 'Sertifikat tidak valid'}</h1>
-      {state.official && valid && <p className="verify-note"><BadgeCheck size={16}/> Token ditandatangani oleh layanan penerbitan resmi Telaah dan lolos pemeriksaan integritas.</p>}
+      <h1>{state.loading ? 'Memeriksa sertifikat…' : valid ? 'Sertifikat valid' : state.revoked ? 'Sertifikat dicabut pada perangkat penerbit' : 'Sertifikat tidak valid'}</h1>
+      {valid && <p className="verify-note"><BadgeCheck size={16}/> Tanda tangan digital cocok. Data QR tidak berubah sejak sertifikat diterbitkan.</p>}
       {state.error && <p>{state.error}</p>}
       {claim && <dl>
         <div><dt>Penerima</dt><dd>{claim.name}</dd></div>
@@ -89,8 +94,8 @@ export default function VerifyPage() {
         <div><dt>Tanggal</dt><dd>{claim.date}</dd></div>
         <div><dt>Sidik penerbit</dt><dd>{state.fingerprint || '—'}</dd></div>
       </dl>}
-      <p className="verify-note">Cocokkan nama, kegiatan, nomor, dan Certificate ID pada halaman ini dengan sertifikat yang diperiksa. Perubahan pada token QR akan membuat verifikasi gagal.</p>
-      {!state.official && state.valid && <p className="verify-note">Sertifikat legacy memakai tanda tangan lokal generasi sebelumnya. Valid berarti isi QR tidak berubah, tetapi belum memiliki stempel kepercayaan server Telaah.</p>}
+      <p className="verify-note">Cocokkan nama, kegiatan, nomor, dan Certificate ID pada halaman ini dengan sertifikat yang diperiksa. Perubahan pada data QR akan membuat verifikasi gagal.</p>
+      {!state.official && state.valid && !currentLocal && <p className="verify-note">Sertifikat ini dibuat dengan format generasi lama Telaah dan belum memiliki Certificate ID baru.</p>}
       <Link href="/">Kembali ke Telaah</Link>
     </section>
   </main>;
