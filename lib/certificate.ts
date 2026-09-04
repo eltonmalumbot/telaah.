@@ -1,4 +1,4 @@
-export type CertificateTemplate = 'gold' | 'blue' | 'green' | 'minimal';
+export type CertificateTemplate = 'gold' | 'blue' | 'green' | 'minimal' | 'academic' | 'executive' | 'teal' | 'purple' | 'coral' | 'tech' | 'monochrome' | 'celebration';
 export type CertificateImage = { data: string; width: number; height: number };
 export type CertificateRecipient = { id: string; name: string; group: string };
 export type CertificateDesign = {
@@ -34,6 +34,14 @@ export const CERTIFICATE_TEMPLATES = [
   { id: 'blue', name: 'Modern Biru', description: 'Bidang geometris yang tegas', ink: '#17375b', accent: '#3978bf', paper: '#ffffff' },
   { id: 'green', name: 'Elegan Hijau', description: 'Ornamen daun dan warna hangat', ink: '#24493e', accent: '#819a64', paper: '#fafbf5' },
   { id: 'minimal', name: 'Minimal', description: 'Tipografi bersih, aksen sederhana', ink: '#292929', accent: '#606060', paper: '#ffffff' },
+  { id: 'academic', name: 'Akademik Merah', description: 'Formal, berwibawa, dan klasik', ink: '#641c2f', accent: '#c39a4a', paper: '#fffaf0' },
+  { id: 'executive', name: 'Eksekutif Navy', description: 'Latar gelap premium dengan emas', ink: '#f8f3e7', accent: '#d5ad55', paper: '#10243f' },
+  { id: 'teal', name: 'Profesional Teal', description: 'Segar, korporat, dan terpercaya', ink: '#183e46', accent: '#31a6a0', paper: '#f8fcfb' },
+  { id: 'purple', name: 'Royal Ungu', description: 'Mewah dengan komposisi simetris', ink: '#3f285d', accent: '#9d78c5', paper: '#fdfaff' },
+  { id: 'coral', name: 'Kreatif Coral', description: 'Hangat, ekspresif, dan modern', ink: '#49333d', accent: '#e77f70', paper: '#fff9f7' },
+  { id: 'tech', name: 'Teknologi', description: 'Garis digital untuk acara inovasi', ink: '#173653', accent: '#2a9fd6', paper: '#f7fbff' },
+  { id: 'monochrome', name: 'Monokrom', description: 'Hitam putih yang tegas dan bersih', ink: '#222222', accent: '#777777', paper: '#ffffff' },
+  { id: 'celebration', name: 'Perayaan', description: 'Dinamis untuk penghargaan spesial', ink: '#502b4f', accent: '#e39b4a', paper: '#fffaf3' },
 ] as const;
 
 export function defaultCertificateDesign(date = new Date()): CertificateDesign {

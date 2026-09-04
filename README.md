@@ -95,7 +95,7 @@ Font DejaVu Sans disertakan beserta lisensinya. Karakter di luar cakupan font, m
 
 Buka tab **Sertifikat** untuk membuat PDF A4 mendatar tanpa konfigurasi tambahan.
 
-1. Pilih **Klasik Emas, Modern Biru, Elegan Hijau, atau Minimal**. Mengganti template mempertahankan teks dan gambar, serta menerapkan warna bawaan template baru. Warna teks dan aksen dapat diubah sendiri.
+1. Pilih satu dari **12 template**: Klasik Emas, Modern Biru, Elegan Hijau, Minimal, Akademik Merah, Eksekutif Navy, Profesional Teal, Royal Ungu, Kreatif Coral, Teknologi, Monokrom, atau Perayaan. Mengganti template mempertahankan teks dan gambar, serta menerapkan warna bawaan template baru. Warna teks dan aksen dapat diubah sendiri.
 2. Isi penerima manual, satu nama per baris, atau `Nama | Grup`. Untuk memakai data peserta, unggah dan periksa file pada tab **File peserta**, lalu kembali ke **Sertifikat** dan pilih nama melalui pencarian/checkbox. Pilihan mencakup seluruh file dan terpisah dari filter maupun peringkat analisis; urutan nomor mengikuti urutan file. File atau pemetaan baru dan pemeriksaan ulang mengosongkan pilihan penerima.
 3. Edit penyelenggara, judul, subjudul, pengantar, kegiatan, isi, tempat, tanggal, nomor awal/pola, dan catatan bawah. Teks dinamis mendukung `{nama}`, `{grup}`, `{acara}`, `{penyelenggara}`, `{tanggal}`, `{tempat}`, `{nomor}`, `{tahun}`, dan `{urutan}`. Pola nomor hanya mendukung `{tahun}` dan `{urutan}`; ekspor massal memerlukan `{urutan}` atau pola kosong. Nomor tidak disimpan pada registri penerbitan.
 4. Unggah maksimal dua logo dan dua gambar tanda tangan dalam PNG/JPG, maksimal 2 MB per gambar. Atur nama/jabatan penandatangan; penandatangan kedua opsional. Gambar dipertahankan proporsinya. Gambar tanda tangan adalah elemen visual, bukan tanda tangan digital tersertifikasi.
@@ -133,7 +133,7 @@ Isi teks dan file diproses di browser, tanpa dikirim ke layanan AI atau disimpan
 | `components/ui/` | Komponen antarmuka shadcn |
 | `tests/analysis.test.mjs` | Pengujian logika, duplikasi, dan CSV |
 | `tests/pdf.test.mjs` | Ekspor hasil filter/urutan, paginasi, karakter, dan rubrik PDF |
-| `tests/certificate.test.mjs` | Validasi desain, penomoran, empat template PDF, dan batas tata letak |
+| `tests/certificate.test.mjs` | Validasi desain, penomoran, semua template PDF, dan batas tata letak |
 | `tests/quality.test.mjs` | Batas heuristik, kritik singkat, seri peringkat, koreksi, dan ekspor |
 | `vercel.json` | Konfigurasi Vercel |
 

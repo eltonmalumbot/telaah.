@@ -40,7 +40,7 @@ test('penerima dan nomor berurutan konsisten antara pratinjau, unduhan satuan, d
   assert.doesNotThrow(() => validateCertificateBatch({ ...design, numberPattern: '' }, names));
 });
 
-test('empat template membuat PDF A4 mendatar per penerima dengan teks, logo, dan penandatangan yang diedit', async () => {
+test('semua template membuat PDF A4 mendatar per penerima dengan teks, logo, dan penandatangan yang diedit', async () => {
   for (const template of CERTIFICATE_TEMPLATES) {
     const design = { ...base, template: template.id, ink: template.ink, accent: template.accent,
       title: 'PIAGAM PENGHARGAAN', organizer: 'Komunitas Contoh', event: 'Lokakarya Pelayanan',

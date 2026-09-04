@@ -55,11 +55,75 @@ function layout(doc: jsPDF, design: CertificateDesign, recipient: CertificateRec
       }
     }
     line(115, 76, 182, 76, accent, 0.4);
-  } else {
+  } else if (template === 'minimal') {
     rect(11, 11, 275, 188, undefined, ink, 0.25);
     rect(11, 11, 50, 2, accent);
     rect(236, 197, 50, 2, accent);
     line(131, 75, 166, 75, accent, 0.6);
+  } else if (template === 'academic') {
+    rect(8, 8, 281, 194, undefined, ink, 0.8);
+    rect(12, 12, 273, 186, undefined, accent, 0.25);
+    rect(18, 18, 261, 3, ink);
+    for (const x of [21, 276]) {
+      nodes.push({ kind: 'circle', x, y: 21, radius: 3.1, fill: accent });
+      nodes.push({ kind: 'circle', x, y: 189, radius: 3.1, fill: accent });
+    }
+    line(118, 75, 179, 75, accent, 0.5);
+  } else if (template === 'executive') {
+    rect(7, 7, 283, 196, undefined, accent, 0.55);
+    rect(11, 11, 275, 188, undefined, accent, 0.16);
+    polygon([[0, 0], [72, 0], [0, 38]], accent);
+    polygon([[297, 210], [225, 210], [297, 172]], accent);
+    line(111, 75, 186, 75, accent, 0.55);
+    for (const x of [18, 279]) for (const y of [55, 155]) nodes.push({ kind: 'circle', x, y, radius: 1.2, fill: accent });
+  } else if (template === 'teal') {
+    rect(0, 0, 20, 210, ink);
+    rect(20, 0, 5, 210, accent);
+    rect(272, 0, 25, 210, '#dff3ef');
+    polygon([[272, 0], [297, 0], [297, 35]], accent);
+    polygon([[272, 210], [297, 175], [297, 210]], ink);
+    line(105, 75, 192, 75, accent, 0.55);
+  } else if (template === 'purple') {
+    rect(9, 9, 279, 192, undefined, ink, 0.45);
+    rect(13, 13, 271, 184, undefined, accent, 0.22);
+    polygon([[9, 9], [68, 9], [9, 45]], ink);
+    polygon([[288, 201], [229, 201], [288, 165]], ink);
+    polygon([[9, 9], [45, 9], [9, 30]], accent);
+    polygon([[288, 201], [252, 201], [288, 180]], accent);
+    line(121, 75, 176, 75, accent, 0.5);
+  } else if (template === 'coral') {
+    nodes.push({ kind: 'circle', x: 18, y: 18, radius: 30, fill: '#f6c8be' });
+    nodes.push({ kind: 'circle', x: 286, y: 197, radius: 33, fill: '#f2b4aa' });
+    nodes.push({ kind: 'circle', x: 280, y: 25, radius: 12, fill: accent });
+    polygon([[0, 185], [0, 210], [49, 210]], ink);
+    rect(11, 11, 275, 188, undefined, accent, 0.25);
+    line(124, 75, 173, 75, accent, 0.75);
+  } else if (template === 'tech') {
+    rect(8, 8, 281, 194, undefined, accent, 0.35);
+    rect(12, 12, 273, 186, undefined, ink, 0.18);
+    for (const side of [1, -1]) {
+      const x = side === 1 ? 8 : 289;
+      line(x, 38, x + side * 22, 38, accent, 0.65);
+      line(x + side * 22, 38, x + side * 22, 55, accent, 0.65);
+      line(x, 171, x + side * 22, 171, accent, 0.65);
+      line(x + side * 22, 171, x + side * 22, 154, accent, 0.65);
+      nodes.push({ kind: 'circle', x: x + side * 22, y: 55, radius: 1.5, fill: accent });
+      nodes.push({ kind: 'circle', x: x + side * 22, y: 154, radius: 1.5, fill: accent });
+    }
+    line(112, 75, 185, 75, accent, 0.55);
+  } else if (template === 'monochrome') {
+    rect(8, 8, 281, 194, undefined, ink, 0.8);
+    rect(13, 13, 271, 184, undefined, ink, 0.15);
+    rect(37, 48, 5, 22, ink);
+    rect(255, 48, 5, 22, ink);
+    line(118, 75, 179, 75, ink, 0.8);
+  } else {
+    rect(10, 10, 277, 190, undefined, accent, 0.4);
+    for (const [x, y, color] of [[17, 19, ink], [30, 12, accent], [280, 191, ink], [267, 198, accent]] as const) {
+      polygon([[x - 9, y], [x, y - 9], [x + 9, y], [x, y + 9]], color);
+    }
+    for (const [x, y] of [[48, 20], [249, 190], [268, 38], [29, 172]] as const) nodes.push({ kind: 'circle', x, y, radius: 2.5, fill: accent });
+    line(116, 75, 181, 75, accent, 0.65);
   }
 
   const variables = certificateVariables(design, recipient, index);
