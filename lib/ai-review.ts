@@ -19,5 +19,12 @@ export const AI_REVIEW_LABELS: Record<AIReviewLevel, string> = {
   insufficient: "Data belum cukup",
 };
 
+export const AI_REVIEW_STORAGE_PREFIX = "telaah-ai-review:";
+export const AI_REVIEW_UPDATED_EVENT = "telaah-ai-review-updated";
+
+export function aiReviewStorageKey(sourceName: string, id: number) {
+  return `${AI_REVIEW_STORAGE_PREFIX}${sourceName || "project"}:${id}`;
+}
+
 export const AI_REVIEW_NOTE =
   "Analisis AI ini menilai petunjuk dalam teks, bukan menentukan siapa penulisnya. Tidak ada persentase kepengarangan atau vonis penggunaan AI. Gunakan hasil hanya sebagai bahan verifikasi manusia.";
