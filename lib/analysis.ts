@@ -1,4 +1,4 @@
-import { assessQuality, qualityScore, qualityStatus, type QualityAssessment } from './quality.ts';
+import { aggregateQuality, assessQuality, decodeQualityPrompts, qualityScore, qualityStatus, type QualityAssessment } from './quality.ts';
 export type Signal = { id: string; title: string; explanation: string; evidence: string[]; caution: string };
 export type TextAnalysis = { words: number; characters: number; sentences: number; signals: Signal[]; limited: boolean; label: string };
 export type Participant = { id: number; name: string; group: string; email?: string; response1: string; response2: string; responses?: string[]; duration: string };
@@ -42,10 +42,11 @@ export function matchingParticipants<T extends Participant>(rows: T[], selected:
   const key = pair(selected, kind === 'normalized');
   return rows.filter(row => participantResponses(row).some(value => value.trim()) && pair(row, kind === 'normalized') === key);
 }
-export function analyzeBatch(rows: Participant[], prompt = ''): Reviewed[] {
+export function analyzeBatch(rows: Participant[], promptValue = ''): Reviewed[] {
   const exact=new Map<string,number>(), similar=new Map<string,number>();
   const maxResponses=Math.max(2,...rows.map(row=>participantResponses(row).length));
   const responseMaps=Array.from({length:maxResponses},()=>new Map<string,number>());
+  const prompts=decodeQualityPrompts(promptValue);
   for(const r of rows) {
     const responses=participantResponses(r);
     if(responses.some(value=>value.trim())) { increment(exact,pair(r)); increment(similar,pair(r,true)); }
@@ -55,7 +56,8 @@ export function analyzeBatch(rows: Participant[], prompt = ''): Reviewed[] {
     const responses=participantResponses(r);
     const responseCounts=responses.map((value,index)=>value.trim()?(responseMaps[index]?.get(value)??0):0);
     const combined=responses.filter(Boolean).join('\n\n');
-    return {...r,responses,quality:assessQuality(combined,prompt),analysis:analyzeText(combined),exactCount:exact.get(pair(r))??0,similarCount:similar.get(pair(r,true))??0,response1Count:responseCounts[0]??0,response2Count:responseCounts[1]??0,responseCounts};
+    const assessments=responses.map((response,index)=>assessQuality(response,prompts[index]??prompts[0]??''));
+    return {...r,responses,quality:aggregateQuality(assessments),analysis:analyzeText(combined),exactCount:exact.get(pair(r))??0,similarCount:similar.get(pair(r,true))??0,response1Count:responseCounts[0]??0,response2Count:responseCounts[1]??0,responseCounts};
   });
 }
 
@@ -67,6 +69,6 @@ export function csvSafe(value: unknown) {
 export function exportCSV(rows: Reviewed[]) {
  const maxResponses=Math.max(2,...rows.map(row=>participantResponses(row).length));
  const extraResponseHeaders=Array.from({length:Math.max(0,maxResponses-2)},(_,index)=>`Jawaban ${index+3}`);
- const header=['Nama','Grup','Email','Jumlah kata','Jumlah pola bahasa','Pola ditandai','Status AI','Pasangan identik (termasuk peserta)','Sama setelah normalisasi (termasuk peserta)','Jawaban 1 identik','Jawaban 2 identik','Durasi sumber','Jawaban 1','Jawaban 2',...extraResponseHeaders,'Peringkat kualitas dalam filter','Skor rubrik /100','Status penilaian kualitas','Acuan tugas','Relevansi /4','Refleksi /4','Contoh konkret /4','Rencana tindakan /4','Catatan reviewer','Alasan dan kutipan saran awal'];
- return '\ufeff'+[header,...rows.map(r=>{const responses=participantResponses(r);return [r.name,r.group,r.email??'',r.analysis.words,r.analysis.signals.length,r.analysis.signals.map(s=>s.title).join('; '),'Tidak dapat ditentukan',r.exactCount,r.similarCount,r.response1Count,r.response2Count,r.duration,responses[0]??'',responses[1]??'',...responses.slice(2),...Array(Math.max(0,maxResponses-responses.length)).fill(''),r.qualityRank??'',r.quality?qualityScore(r.quality):'',r.quality?qualityStatus(r.quality):'Belum dinilai',r.quality?.prompt??'',...(['relevance','reflection','concrete','action'].map(id=>r.quality?.criteria.find(item=>item.id===id)?.level??'')),r.quality?.reviewerNote??'',r.quality?.criteria.map(item=>`${item.title}: ${item.explanation} Kutipan: ${item.evidence.join(' | ')}`).join('\n')??''];})].map(row=>row.map(csvSafe).join(',')).join('\r\n');
+ const header=['Nama','Grup','Email','Jumlah kata','Jumlah pola bahasa','Pola ditandai','Status AI','Pasangan identik (termasuk peserta)','Sama setelah normalisasi (termasuk peserta)','Jawaban 1 identik','Jawaban 2 identik','Durasi sumber','Jawaban 1','Jawaban 2',...extraResponseHeaders,'Peringkat kualitas dalam filter','Skor rubrik /100','Status penilaian kualitas','Acuan tugas','Skor per Response','Relevansi /4','Refleksi /4','Contoh konkret /4','Rencana tindakan /4','Catatan reviewer','Alasan dan kutipan saran awal'];
+ return '\ufeff'+[header,...rows.map(r=>{const responses=participantResponses(r);return [r.name,r.group,r.email??'',r.analysis.words,r.analysis.signals.length,r.analysis.signals.map(s=>s.title).join('; '),'Tidak dapat ditentukan',r.exactCount,r.similarCount,r.response1Count,r.response2Count,r.duration,responses[0]??'',responses[1]??'',...responses.slice(2),...Array(Math.max(0,maxResponses-responses.length)).fill(''),r.qualityRank??'',r.quality?qualityScore(r.quality):'',r.quality?qualityStatus(r.quality):'Belum dinilai',r.quality?.prompt??'',r.quality?.componentScores?.map(item=>`Response ${item.response}: ${item.score}`).join('; ')??'',...(['relevance','reflection','concrete','action'].map(id=>r.quality?.criteria.find(item=>item.id===id)?.level??'')),r.quality?.reviewerNote??'',r.quality?.criteria.map(item=>`${item.title}: ${item.explanation} Kutipan: ${item.evidence.join(' | ')}`).join('\n')??''];})].map(row=>row.map(csvSafe).join(',')).join('\r\n');
 }
