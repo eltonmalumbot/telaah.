@@ -1,155 +1,239 @@
-# Telaah
+# Telaah.
 
-Website pemeriksaan pola bahasa, duplikasi, kualitas refleksi peserta, dan pembuatan sertifikat, menggunakan **Next.js 16, React 19, dan TypeScript**. Siap diimpor dari GitHub ke Vercel.
+Telaah. adalah workspace lokal untuk memeriksa pola bahasa, duplikasi jawaban, menilai kualitas refleksi dengan rubrik transparan, membandingkan peserta, menyusun kandidat Top 10, membuat laporan PDF/CSV, dan menerbitkan sertifikat ber-QR.
 
-> Repositori ini bernama `eltonmalumbot/telaah.` (ada titik pada akhir nama repo). Untuk nama proyek Vercel, gunakan `telaah` atau nama lain yang masih tersedia.
+> Nama repositori GitHub adalah **`eltonmalumbot/telaah.`** — titik di akhir nama repo adalah bagian dari nama.
 
-## Hubungkan ke Vercel
+## Prinsip utama
 
-1. Buka [Vercel New Project](https://vercel.com/new).
-2. Hubungkan akun GitHub dan pilih repositori **eltonmalumbot/telaah.**.
-3. Gunakan pengaturan berikut, lalu klik **Deploy**.
+- **Tidak memakai OpenAI API untuk analisis.** Isi jawaban peserta dianalisis di browser dengan aturan yang dapat diperiksa.
+- Penanda bahasa **bukan probabilitas AI dan bukan vonis kepengarangan**.
+- Skor kualitas memakai rubrik 4 aspek dan tetap dapat dikoreksi reviewer.
+- File peserta, analisis, PDF, ZIP, dan mode sertifikat lokal tidak memerlukan API key.
 
-| Pengaturan | Nilai |
-| --- | --- |
-| Framework Preset | Next.js |
-| Root Directory | `./` (root repositori) |
-| Node.js Version | `24.x` |
-| Install Command | `npm ci` |
-| Build Command | `npm run build` |
-| Output Directory | Default Next.js; biarkan override mati |
-| Production Branch | `main` |
-| Environment Variables | Opsional; hanya diperlukan untuk pengiriman email |
+## Stack
 
-`vercel.json`, `package.json`, dan `.nvmrc` sudah menyiapkan framework, perintah build, serta Node.js. Analisis, PDF, ZIP, penyimpanan proyek, dan verifikasi tanda tangan QR tidak memerlukan API key. Setelah terhubung, push berikutnya ke `main` dapat membangun ulang deployment melalui integrasi Git Vercel.
+- Next.js 16.2.6
+- React 19.2.6
+- TypeScript 5.9
+- Node.js 24.x
+- Vercel
+- Neon Postgres opsional untuk registry sertifikat online
 
-Untuk mengaktifkan pengiriman sertifikat lewat email, tambahkan `RESEND_API_KEY`, `CERTIFICATE_FROM_EMAIL`, dan `CERTIFICATE_ADMIN_KEY` dari contoh `.env.example` pada Vercel. Alamat pengirim harus memakai domain yang sudah diverifikasi di Resend. Tanpa konfigurasi ini, seluruh fitur lain tetap berjalan dan tombol email akan menjelaskan bahwa layanan belum dikonfigurasi.
-
-Referensi: [Next.js di Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs) dan [versi Node.js](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
-
-## Jalankan lokal
-
-Gunakan Node.js 24 dan npm.
+## Menjalankan secara lokal
 
 ```bash
 git clone https://github.com/eltonmalumbot/telaah..git
 cd telaah.
-npm ci
+npm install
 npm run dev
 ```
 
-Untuk pemeriksaan dan build produksi:
+Pemeriksaan sebelum deploy:
 
 ```bash
 npm test
 npm run typecheck
 npm run lint
 npm run build
-npm start
 ```
 
-`npm run dev` dan `npm start` membuka aplikasi pada port 3000 secara default. TypeScript dapat diperiksa setelah dependensi terpasang; build juga menjalankan validasi TypeScript.
+CI GitHub menjalankan empat pemeriksaan tersebut pada pull request dan push ke `main`.
 
-## Fitur
+## Impor peserta dan Response 1–N
 
-- Tempel teks hingga 50.000 karakter; setiap penanda memiliki alasan, kutipan, dan batas interpretasi.
-- Impor `.xlsx` atau `.csv` dengan pemetaan nama, grup, dua jawaban, dan durasi; mendukung ekspor Moodle.
-- Batas impor: 10 MB file, 60 MB isi ZIP XLSX, 10.000 baris, 64 kolom, dan 50.000 karakter per sel. Hanya lembar pertama dibaca.
-- Cari nama atau grup; filter dan urutkan hasil; buka rincian dua jawaban.
-- Klik jumlah peserta pada **Kecocokan dalam file** untuk melihat nama/grup yang cocok dan membuka detail responsnya. Empat jenis kecocokan tersedia; daftar berasal dari seluruh file sebelum filter dan Top 10, menandai peserta yang sedang dibuka, serta mendukung pencarian dan halaman untuk kelompok besar.
-- Bandingkan pasangan jawaban secara persis, per jawaban, serta setelah normalisasi Unicode NFKC, huruf kecil, dan spasi. Jumlah mencakup peserta yang sedang diperiksa. Teks kosong tidak dihitung sebagai duplikat.
-- Unduh hasil yang sedang difilter dan diurutkan sebagai CSV, dengan penetralan awalan formula spreadsheet.
-- Unduh PDF teks tunggal: ringkasan, alasan, kutipan, batas interpretasi, dan seluruh teks yang diperiksa.
-- Unduh PDF peserta: seluruh hasil pencarian/filter dalam urutan tabel, termasuk halaman selanjutnya, dengan nama/grup, jumlah kata, pola, dan jumlah pasangan identik. Nomor baris bukan peringkat. Laporan mencatat sumber file, waktu, filter, cakupan data, dan batas metode.
-- Bandingkan dua peserta secara berdampingan menggunakan pencarian nama, grup, email, atau nomor respons; tampilkan nilai kualitas per aspek, pola bahasa, duplikasi, jumlah kata, dan kedua jawaban.
-- Simpan hasil analisis lengkap sebagai proyek lokal melalui IndexedDB, lalu muat kembali tanpa mengimpor ulang file.
+Telaah. membaca `.xlsx` atau `.csv`. Kolom Moodle seperti:
 
-## Analisis kualitas dan kandidat jawaban terbaik
+```text
+Last name | First name | Email address | Response 1 | Response 2 | Response 3 | ... | Duration
+```
 
-1. Isi **Pertanyaan / tujuan tugas** di bagian **Cari jawaban terbaik**. Gunakan topik yang sesuai dengan tugas; tombol **Contoh acuan** menyediakan contoh refleksi podcast. Acuan kosong tidak menghasilkan nilai kualitas.
-2. Klik **Periksa teks** atau **Periksa respons** setelah mengimpor file. Kedua kolom jawaban dinilai bersama sebagai satu refleksi; bukan nilai terpisah per pertanyaan. Mengubah acuan berlaku pada pemeriksaan berikutnya. Pemeriksaan ulang mengganti saran/koreksi sebelumnya.
-3. Untuk file peserta, gunakan pencarian/grup dan filter, lalu **Urutkan kualitas** atau **Kandidat Top 10**. Klik kartu Kandidat Top 10 untuk melihat skor total, skor empat aspek rubrik, kekuatan, area yang perlu ditinjau, dan status konfirmasi setiap peserta. Peringkat dihitung dalam filter aktif. Nilai sama berbagi peringkat; peserta yang seri di batas kesepuluh ikut ditampilkan, sehingga jumlahnya dapat melebihi 10. Teks kosong tidak diberi peringkat.
-4. Buka detail peserta atau rubrik teks tunggal. Periksa kutipan dan panduan setiap aspek, koreksi tingkat 0–4, tambahkan catatan, lalu **Konfirmasi penilaian**. Perubahan langsung memperbarui skor dan peringkat. Filter **Penilaian dikonfirmasi** memisahkan hasil yang sudah ditinjau. Konfirmasi merupakan penanda lokal, bukan tanda tangan atau verifikasi identitas reviewer.
-5. **Unduh PDF/CSV** menyertakan skor, peringkat file sesuai filter, acuan, status penilaian, dan catatan reviewer. Panel ringkasan menampilkan kandidat Top 10 dan jumlah penilaian yang telah dikonfirmasi. Gunakan **Proyek analisis** untuk menyimpan data dan koreksi di browser ini.
+dideteksi otomatis. Bagian **Sesuaikan kolom** menampilkan **Jawaban 1…N** sebanyak kolom Response yang ditemukan. File lama dengan dua Response tetap kompatibel.
 
-### Rubrik refleksi v1.0
+Batas impor: 10 MB file, 60 MB isi XLSX setelah dibuka, 10.000 baris data, 64 kolom, 50.000 karakter per sel, dan hanya sheet pertama yang dibaca.
 
-Empat aspek berbobot sama, masing-masing 25 poin: **relevansi dengan tugas, kedalaman refleksi, contoh konkret, dan rencana tindakan**. Reviewer memilih tingkat 0–4. Total adalah jumlah tingkat dibagi 16 × 100, dibulatkan ke bilangan bulat.
+## Pertanyaan 1–N dan penilaian jawaban terbaik
 
-Saran awal merupakan heuristik bahasa Indonesia yang terbuka dalam `lib/quality.ts`, bukan model penilaian semantik:
+Jika file memiliki beberapa Response, bagian **Cari jawaban terbaik** otomatis membuat acuan yang sejajar:
 
-- Relevansi: proporsi kata topik unik yang cocok secara literal setelah normalisasi Unicode dan huruf kecil, tanpa stopword; nol jika tidak ada kecocokan, selain itu `ceil(proporsi × 4)`. Tidak memahami sinonim, ketepatan argumen, atau kebenaran fakta.
-- Refleksi: masing-masing satu tingkat untuk petunjuk alasan/kontras, alasan personal, pembelajaran personal, serta pembelajaran personal dengan alasan.
-- Contoh: satu tingkat untuk pengalaman personal dengan tindakan; masing-masing tambahan untuk detail situasi, angka, dan hubungan alasan/kontras dalam pengalaman tersebut.
-- Tindakan: satu tingkat untuk rencana personal dengan kata tindakan; masing-masing tambahan untuk detail, waktu, dan evaluasi/ukuran. Pola negasi tindakan yang dikenali dikecualikan.
+```text
+Pertanyaan / tujuan Response 1 → Response 1
+Pertanyaan / tujuan Response 2 → Response 2
+Pertanyaan / tujuan Response 3 → Response 3
+...
+```
 
-Kamus petunjuk terbatas dan dapat melewatkan jawaban bagus maupun tertipu teks yang sekadar menyebut kata kunci. **Skor awal bukan nilai final dan belum divalidasi pada dataset berlabel.** Gunakan panduan rubrik dan koreksi reviewer untuk menilai substansi. Tidak ada penalti atau bonus langsung karena durasi, panjang teks, kerapian, kritik, duplikasi, atau indikator AI; pengulangan kalimat tidak menambah tingkat. Jawaban singkat dan kritis bisa mendapat skor lebih tinggi daripada tulisan panjang yang umum.
+Masing-masing jawaban dinilai **secara terpisah** terhadap pertanyaannya sendiri. Skor akhir peserta adalah **rata-rata aritmetika skor Response yang memiliki acuan valid**. Detail penilaian menampilkan skor tiap Response serta ringkasan gabungan untuk Top 10.
 
-Rubrik ini ditujukan untuk refleksi dengan rencana tindakan; jangan menggunakannya sebagai penilai universal soal faktual, matematika, atau semua genre tulisan. Jika kedua kolom berisi pertanyaan berbeda, rumuskan acuan gabungan yang adil atau periksa setiap jawaban secara terpisah.
+Rubrik v1.0 terdiri dari empat aspek berbobot sama:
 
-## Laporan PDF
+1. Relevansi dengan tugas
+2. Kedalaman refleksi
+3. Contoh konkret
+4. Rencana tindakan
 
-Klik **Unduh PDF** setelah memeriksa teks atau file peserta. PDF dibuat langsung di browser dengan jsPDF dan AutoTable; tidak memerlukan API key atau konfigurasi Vercel tambahan. Pembuat PDF dan font dimuat saat ekspor pertama agar tidak membebani pembukaan awal halaman. Isi respons tidak dikirim ke server saat ekspor.
+Setiap aspek 0–4. Skor satu jawaban = jumlah tingkat ÷ 16 × 100. Saran awal adalah heuristik bahasa Indonesia, bukan model semantik; reviewer dapat mengubah tingkat dan mengonfirmasi hasil.
 
-Laporan peserta merangkum semua baris yang cocok dengan pencarian/filter dan pilihan Top 10 bila aktif, termasuk seluruh halaman tabel hasil. Urutan mengikuti tabel; jumlah pasangan identik tetap dihitung terhadap seluruh file sumber. PDF peserta berisi ringkasan temuan per peserta dan rubrik ringkas bila penilaian aktif, sementara PDF teks tunggal menyertakan seluruh teks masukan serta alasan/kutipan tiap aspek. PDF mencatat apakah skor masih awal, sudah dikoreksi, atau dikonfirmasi reviewer. Unduhan dapat memuat data pribadi sesuai file masukan.
+## Duplikasi dan perbandingan
 
-Font DejaVu Sans disertakan beserta lisensinya. Karakter di luar cakupan font, misalnya sebagian emoji atau aksara, ditulis sebagai kode Unicode seperti `[U+1F600]` agar tidak hilang tanpa penjelasan. Teks asli di aplikasi tidak berubah.
+Telaah. memeriksa:
 
-## Studio sertifikat
+- tuple seluruh Response yang identik;
+- tuple setelah normalisasi Unicode NFKC, huruf kecil, dan spasi;
+- jumlah identik untuk Response 1, Response 2, dan Response berikutnya;
+- daftar peserta yang cocok;
+- perbandingan dua peserta melalui pencarian nama, grup, email, atau nomor peserta.
 
-Buka tab **Sertifikat** untuk membuat PDF A4 mendatar tanpa konfigurasi tambahan.
+Teks kosong tidak dianggap duplikat.
 
-1. Pilih satu dari **12 template**: Klasik Emas, Modern Biru, Elegan Hijau, Minimal, Akademik Merah, Eksekutif Navy, Profesional Teal, Royal Ungu, Kreatif Coral, Teknologi, Monokrom, atau Perayaan. Mengganti template mempertahankan teks dan gambar, serta menerapkan warna bawaan template baru. Warna teks dan aksen dapat diubah sendiri.
-2. Isi penerima manual dengan format `Nama | Grup | Email`, atau petakan kolom Email pada file peserta. Pilih nama melalui pencarian/checkbox, **Kandidat Top 10**, atau **Nilai terkonfirmasi**. Pilihan kandidat selalu dapat diperiksa dan diubah sebelum penerbitan; tidak ada sertifikat yang diterbitkan otomatis karena dugaan AI.
-3. Edit penyelenggara, judul, subjudul, pengantar, kegiatan, isi, tempat, tanggal, nomor awal/pola, dan catatan bawah. Teks dinamis mendukung `{nama}`, `{grup}`, `{acara}`, `{penyelenggara}`, `{tanggal}`, `{tempat}`, `{nomor}`, `{tahun}`, dan `{urutan}`. Pola nomor hanya mendukung `{tahun}` dan `{urutan}`; ekspor massal memerlukan `{urutan}` atau pola kosong. Nomor tidak disimpan pada registri penerbitan.
-4. Unggah maksimal dua logo, dua gambar tanda tangan, dan latar kustom A4 mendatar. Pilih font sans/serif/mono, ubah skala teks, geser posisi nama/isi/tanda tangan melalui slider atau titik biru pada pratinjau, dan tampilkan/sembunyikan bingkai template.
-5. Periksa setiap penerima melalui panah pratinjau. Unduh **PDF penerima ini**, **PDF gabungan**, atau **ZIP PDF individual**, maksimal 200 penerima per penerbitan.
-6. Aktifkan QR untuk membuat tautan verifikasi dengan tanda tangan digital ECDSA P-256. Registri lokal menyimpan nomor, sidik kunci, dan status aktif/dicabut; cadangan publik registri dapat diekspor sebagai JSON tanpa kunci privat. Keaslian isi QR dapat diperiksa lintas perangkat di `/verify`, sedangkan sinkronisasi status pencabutan publik memerlukan database daring.
-7. **Simpan proyek** menyimpan desain dan pilihan penerima di browser. **Ekspor desain** mengunduh JSON portabel; **Muat desain** membukanya kembali.
-8. Jika Resend telah dikonfigurasi di Vercel, masukkan kunci admin sesi dan kirim PDF ber-QR ke maksimal 20 penerima per proses. Kunci admin tidak disimpan di proyek atau browser.
+## Laporan dan penyimpanan
 
-Pratinjau SVG dan PDF memakai geometri serta pengukuran font yang sama. Pemrosesan penerima, gambar, dan ekspor berlangsung di browser. Hanya saat pengguna menekan kirim email, PDF serta alamat penerima dikirim ke rute server dan Resend. Sertifikat diberikan kepada penerima yang dipilih pengguna, tanpa keputusan otomatis berdasarkan skor kualitas atau indikasi AI.
+- PDF teks tunggal
+- PDF hasil peserta
+- CSV hasil analisis
+- proyek analisis lokal melalui IndexedDB/localStorage
+- desain sertifikat dalam JSON
+- backup registry sertifikat
 
-## Batas metode dan data
+Perangkat bersama harus dikelola dengan hati-hati karena proyek lokal dapat berisi data peserta.
 
-Telaah menggunakan aturan bahasa, **bukan model deteksi AI terkalibrasi**. Tidak ada klaim akurasi deteksi, probabilitas AI, atau vonis kepengarangan. Peringkat kualitas berasal dari rubrik terpisah dan tetap memerlukan tinjauan reviewer. Aturan dapat menandai teks manusia dan melewatkan teks AI. Durasi, teks pendek, serta nada kritis tidak menjadi dasar pengurangan nilai.
+## Studio Sertifikat
 
-Penanda meliputi penyebutan identitas asisten AI, sisa label percakapan/placeholder, pengantar jawaban, sedikitnya empat baris berpoin pada 80 kata, dan sedikitnya empat penghubung formal pada 100 kata. Ambang tersebut merupakan aturan praktis yang belum dikalibrasi terhadap dataset manusia/AI.
+Studio mendukung 12 template, latar kustom, dua logo, dua tanda tangan, nomor sertifikat, PDF individual, PDF gabungan, ZIP massal, dan QR verifikasi.
 
-Isi teks dan file diproses di browser tanpa dikirim ke layanan AI. Data sesi hilang saat halaman dimuat ulang, kecuali proyek yang sengaja disimpan di IndexedDB/localStorage. Proyek lokal berisi data peserta, sehingga perangkat bersama harus dikelola dengan hati-hati. File jawaban peserta asli tidak disertakan dalam repositori. Aplikasi tidak memiliki login bawaan; akses deployment dikelola melalui pengaturan Vercel.
+### Mode sederhana — default
 
-## Struktur kode
+Tidak perlu environment variable.
+
+Alur:
+
+```text
+Pilih peserta → buat sertifikat → Certificate ID + QR otomatis → download
+```
+
+Certificate ID menggunakan pola seperti:
+
+```text
+TLH-2026-A1B2C3D4E5
+```
+
+Mode lokal menandatangani QR dengan ECDSA P-256 di browser. Private key lokal tidak dimasukkan ke QR; public key dipakai untuk memeriksa integritas token dari perangkat lain.
+
+### Trusted Issuer — opsional, aktivasi sekali
+
+Untuk organisasi yang membutuhkan registry resmi dan status pencabutan lintas perangkat, aktifkan trusted issuer pada:
+
+```text
+/issuer
+```
+
+Pengelola memasukkan `CERTIFICATE_ADMIN_KEY` **satu kali**. Browser menerima cookie HttpOnly tepercaya selama satu tahun. Setelah itu pembuatan sertifikat tetap sama sederhananya dan tidak meminta password setiap kali.
+
+Trusted issuer memerlukan:
+
+```text
+CERTIFICATE_ADMIN_KEY=
+CERTIFICATE_SIGNING_SECRET=
+DATABASE_URL=
+```
+
+`CERTIFICATE_SIGNING_SECRET` sebaiknya random minimal 32 karakter dan tidak boleh disimpan di GitHub. `DATABASE_URL` mengarah ke Neon/Postgres yang memiliki tabel `certificate_registry` dari `scripts/certificate-registry.sql`.
+
+Jika trusted issuer atau database tidak tersedia, Telaah. tetap dapat membuat sertifikat dengan mode lokal sehingga workflow harian tidak terblokir.
+
+## Registry sertifikat online
+
+Trusted certificate yang berhasil diterbitkan dicatat dengan:
+
+- Certificate ID
+- hash token
+- nama penerima dan grup
+- kegiatan dan penyelenggara
+- nomor serta tanggal sertifikat
+- fingerprint penerbit
+- status `active` / `revoked`
+- waktu penerbitan/pencabutan
+
+Halaman `/verify` memeriksa signature server dan, bila registry online tersedia, juga status publik. Sertifikat yang dicabut tidak lagi tampil sebagai valid.
+
+Schema tersedia di:
+
+```text
+scripts/certificate-registry.sql
+```
+
+## Backup sertifikat
+
+Registry publik dapat diekspor tanpa private key. Untuk pemulihan identitas penerbit lokal tersedia backup recovery yang **mengandung private key**; file recovery harus disimpan offline dan jangan pernah dibagikan atau diunggah ke repositori.
+
+Jika browser dihapus sebelum private key lokal dibackup, identitas penerbit lokal lama tidak dapat dibuat ulang, walaupun QR yang sudah terbit tetap dapat diverifikasi dari public key yang tertanam.
+
+## Email sertifikat — opsional
+
+Pengiriman melalui Resend membutuhkan:
+
+```text
+RESEND_API_KEY=
+CERTIFICATE_FROM_EMAIL=Sertifikat <sertifikat@domain-anda.com>
+CERTIFICATE_ADMIN_KEY=
+```
+
+Domain pengirim harus diverifikasi di Resend. Tanpa konfigurasi email seluruh fitur utama tetap berjalan.
+
+## Environment variables
+
+Lihat `.env.example`.
+
+| Variable | Kebutuhan |
+| --- | --- |
+| `DATABASE_URL` | Hanya registry online |
+| `CERTIFICATE_ADMIN_KEY` | Aktivasi trusted issuer / email |
+| `CERTIFICATE_SIGNING_SECRET` | Signature trusted issuer |
+| `RESEND_API_KEY` | Hanya pengiriman email |
+| `CERTIFICATE_FROM_EMAIL` | Hanya pengiriman email |
+
+## Deploy Vercel
+
+| Pengaturan | Nilai |
+| --- | --- |
+| Framework | Next.js |
+| Root Directory | `./` |
+| Node.js | 24.x |
+| Install | `npm install` |
+| Build | `npm run build` |
+| Production Branch | `main` |
+
+Production saat ini menggunakan integrasi GitHub → Vercel. Push ke `main` memicu deployment baru.
+
+## Quality gate dan dependency maintenance
+
+GitHub Actions memeriksa test, TypeScript, ESLint, dan production build. Dependabot dijadwalkan mingguan untuk membuka PR dependency sehingga update dapat diuji satu per satu. Hindari menjalankan `npm audit fix --force` langsung di production karena upgrade transitif dapat membawa breaking change.
+
+## Batas interpretasi
+
+Telaah. bukan alat forensik kepengarangan dan tidak boleh dipakai sebagai satu-satunya dasar menuduh peserta menggunakan AI. Penanda seperti penyebutan identitas asisten, placeholder, struktur poin, atau penghubung formal juga dapat muncul pada tulisan manusia. Untuk keputusan penting, baca isi respons, konteks tugas, duplikasi, bukti pengalaman, serta hasil tinjauan reviewer.
+
+## Struktur penting
 
 | Path | Fungsi |
 | --- | --- |
-| `app/page.tsx` | Workspace teks, impor, tabel, detail peserta, dan metode |
-| `app/globals.css` | Tema dan tampilan responsif |
-| `app/layout.tsx` | Metadata dan bahasa Indonesia |
-| `lib/analysis.ts` | Penanda bahasa, pencocokan duplikat, dan ekspor |
-| `lib/quality.ts` | Saran rubrik, koreksi nilai, dan peringkat seri |
-| `components/quality-review.tsx` | Acuan tugas dan formulir penilaian reviewer |
-| `lib/import.ts` | Pembacaan XLSX/CSV dan pemetaan kolom |
-| `lib/pdf-report.ts` | Laporan PDF teks dan peserta di browser |
-| `lib/pdf-font.ts` | Pemuat font bersama dan cakupan karakter PDF |
-| `lib/certificate.ts` | Desain, penerima, variabel, dan validasi gambar sertifikat |
-| `lib/certificate-render.ts` | Tata letak bersama pratinjau dan PDF sertifikat |
-| `components/certificate-studio.tsx` | Editor desain, penerima, QR, ZIP, email, proyek, dan registri |
-| `components/analysis-tools.tsx` | Ringkasan, perbandingan peserta, dan proyek analisis IndexedDB |
-| `lib/certificate-identity.ts` | Penerbitan serta verifikasi tanda tangan digital sertifikat |
-| `app/verify/page.tsx` | Halaman verifikasi QR sertifikat |
-| `app/api/certificates/email/route.ts` | Pengiriman PDF opsional melalui Resend |
-| `app/certificate.css` | Tampilan responsif studio sertifikat |
-| `public/fonts/` | Font PDF dan lisensi |
-| `components/ui/` | Komponen antarmuka shadcn |
-| `tests/analysis.test.mjs` | Pengujian logika, duplikasi, dan CSV |
-| `tests/pdf.test.mjs` | Ekspor hasil filter/urutan, paginasi, karakter, dan rubrik PDF |
-| `tests/certificate.test.mjs` | Validasi desain, penomoran, semua template PDF, dan batas tata letak |
-| `tests/certificate-identity.test.mjs` | Tanda tangan, manipulasi token, status, dan encoder QR |
-| `tests/quality.test.mjs` | Batas heuristik, kritik singkat, seri peringkat, koreksi, dan ekspor |
-| `vercel.json` | Konfigurasi Vercel |
+| `app/page.tsx` | Workspace utama |
+| `app/verify/page.tsx` | Verifikasi QR |
+| `app/issuer/page.tsx` | Aktivasi trusted issuer sekali per perangkat |
+| `lib/analysis.ts` | Analisis bahasa dan duplikasi |
+| `lib/quality.ts` | Rubrik dan multi-prompt 1–N |
+| `lib/import.ts` | Impor dan mapping Response 1–N |
+| `lib/certificate-identity.ts` | Penerbit lokal + pemilihan trusted issuer |
+| `lib/certificate-server.ts` | Signature trusted server |
+| `lib/certificate-registry-server.ts` | Registry Neon/Postgres |
+| `scripts/certificate-registry.sql` | Schema registry |
+| `.github/workflows/ci.yml` | Quality gate CI |
+| `.github/dependabot.yml` | Update dependency berkala |
 
-Versi ini memakai perintah Next.js standar. Encoder QR vendored berasal dari proyek MIT `qrcode-generator` oleh Kazuhiko Arase; salinan lisensi disertakan di `lib/vendor/`.
+## Sebelum penggunaan resmi
 
-## Validasi
-
-Logika impor sebelumnya diuji pada 2.875 respons, dengan 31 peserta BPA/BTI/BJI serta kelompok pasangan identik 128 dan 25 peserta. Uji tersebut memvalidasi pembacaan dan pencocokan, bukan akurasi deteksi AI. Migrasi ini juga diperiksa melalui pengujian logika, TypeScript, dan build produksi Next.js.
+- tetapkan domain permanen sebelum menerbitkan sertifikat dalam jumlah besar;
+- simpan salinan file sumber dan laporan penting;
+- aktifkan trusted issuer jika sertifikat akan dipakai sebagai bukti resmi lintas organisasi;
+- cadangkan identitas penerbit lokal secara aman;
+- jangan menyimpan secret atau file recovery di GitHub.
