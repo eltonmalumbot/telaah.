@@ -1,14 +1,25 @@
 "use client";
 
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Award, Check, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { QUALITY_NOTE, QUALITY_SCOPE, QUALITY_PROMPT_EXAMPLE, decodeQualityPrompts, encodeQualityPrompts, qualityScore, qualityStatus, resetQuality, topicKeywords, updateQualityLevel, type QualityAssessment } from '@/lib/quality';
 
-export function QualitySetup({ value, onChange, disabled, responseCount = 1 }: { value: string; onChange: (value: string) => void; disabled: boolean; responseCount?: number }) {
+export function QualitySetup({ value, onChange, disabled, responseCount }: { value: string; onChange: (value: string) => void; disabled: boolean; responseCount?: number }) {
   const id = useId();
-  const count = Math.max(1, Math.min(64, responseCount));
+  const [detectedCount, setDetectedCount] = useState(1);
+  useEffect(() => {
+    const stored = Number(localStorage.getItem('telaah-response-count') || 1);
+    if (Number.isFinite(stored)) setDetectedCount(Math.max(1, Math.min(64, stored)));
+    const handler = (event: Event) => {
+      const count = Number((event as CustomEvent<{ count?: number }>).detail?.count ?? 1);
+      if (Number.isFinite(count)) setDetectedCount(Math.max(1, Math.min(64, count)));
+    };
+    window.addEventListener('telaah:response-count', handler);
+    return () => window.removeEventListener('telaah:response-count', handler);
+  }, []);
+  const count = Math.max(1, Math.min(64, responseCount ?? detectedCount));
   const decoded = decodeQualityPrompts(value);
   const prompts = Array.from({ length: count }, (_, index) => decoded[index] ?? (decoded.length === 1 && count === 1 ? decoded[0] : ''));
   function updatePrompt(index: number, prompt: string) {
