@@ -1,6 +1,14 @@
 import type { Participant } from './analysis';
 export type Imported = { headers: string[]; rows: string[][]; sheet: string };
-export type Mapping = { name: string; group: string; email: string; response1: string; response2: string; duration: string };
+export type Mapping = {
+ name: string;
+ group: string;
+ email: string;
+ response1: string;
+ response2: string;
+ responses: string[];
+ duration: string;
+};
 
 export function parseCSV(input: string): string[][] {
  const text=input.replace(/^\ufeff/,'');
@@ -54,14 +62,56 @@ export async function readFile(file: File): Promise<Imported> {
  return {headers, rows:all.slice(1),sheet};
 }
 
+function responseNumber(header: string): number | null {
+ const normalized=header.normalize('NFKC').toLocaleLowerCase('id').trim();
+ const match=normalized.match(/^(?:response|jawaban|answer)\s*[-_.:]?\s*(\d+)$/i);
+ return match ? Number(match[1]) : null;
+}
+
+export function detectedResponseColumns(headers:string[]):string[] {
+ const numbered=headers
+  .map((header,index)=>({index,number:responseNumber(header)}))
+  .filter((item):item is {index:number;number:number}=>item.number!==null)
+  .sort((a,b)=>a.number-b.number||a.index-b.index)
+  .map(item=>String(item.index));
+ if(numbered.length)return numbered;
+ const generic=headers.findIndex(h=>['jawaban','response','answer','text','teks','refleksi'].includes(h.toLowerCase().trim()));
+ return generic>=0?[String(generic)]:[];
+}
+
 export function autoMapping(headers:string[]):Mapping {
  const locate=(names:string[])=>{ const i=headers.findIndex(h=>names.includes(h.toLowerCase().trim()));return i<0?'':String(i); };
- return {name:locate(['last name','nama','name','nama peserta','peserta']),group:locate(['first name','grup','group','unit','bagian']),email:locate(['email','email address','alamat email','e-mail']),response1:locate(['response 1','jawaban 1','jawaban','response','text','teks','refleksi']),response2:locate(['response 2','jawaban 2']),duration:locate(['duration','durasi'])};
+ const detected=detectedResponseColumns(headers);
+ const responses=detected.length>=2?detected:[detected[0]??'', ''];
+ return {
+  name:locate(['last name','nama','name','nama peserta','peserta']),
+  group:locate(['first name','grup','group','unit','bagian']),
+  email:locate(['email','email address','alamat email','e-mail']),
+  response1:responses[0]??'',
+  response2:responses[1]??'',
+  responses,
+  duration:locate(['duration','durasi'])
+ };
 }
 
 export function toParticipants(data:Imported,m:Mapping):Participant[] {
- if(m.response1==='')throw new Error('Pilih kolom teks atau Jawaban 1 terlebih dahulu.');
- if(m.response1===m.response2)throw new Error('Jawaban 1 dan Jawaban 2 harus memakai kolom berbeda.');
- const get=(r:string[],key:keyof Mapping)=>m[key]!==''?(r[Number(m[key])]??''):'';
- return data.rows.map((r,i)=>({id:i+1,name:get(r,'name').trim()||`Peserta baris ${i+2}`,group:get(r,'group').trim()||'Tanpa grup',email:get(r,'email').trim(),response1:get(r,'response1'),response2:get(r,'response2'),duration:get(r,'duration')}));
+ const mapped=(m.responses?.length?m.responses:[m.response1,m.response2]).map(value=>value??'');
+ if(!mapped[0])throw new Error('Pilih kolom Jawaban 1 terlebih dahulu.');
+ const selected=mapped.filter(Boolean);
+ if(new Set(selected).size!==selected.length)throw new Error('Setiap Jawaban harus memakai kolom yang berbeda.');
+ const getColumn=(r:string[],column:string)=>column!==''?(r[Number(column)]??''):'';
+ const getStatic=(r:string[],key:'name'|'group'|'email'|'duration')=>getColumn(r,m[key]);
+ return data.rows.map((r,i)=>{
+  const responses=mapped.map(column=>getColumn(r,column));
+  return {
+   id:i+1,
+   name:getStatic(r,'name').trim()||`Peserta baris ${i+2}`,
+   group:getStatic(r,'group').trim()||'Tanpa grup',
+   email:getStatic(r,'email').trim(),
+   response1:responses[0]??'',
+   response2:responses[1]??'',
+   responses,
+   duration:getStatic(r,'duration')
+  };
+ });
 }
