@@ -1,6 +1,6 @@
 export type CertificateTemplate = 'gold' | 'blue' | 'green' | 'minimal' | 'academic' | 'executive' | 'teal' | 'purple' | 'coral' | 'tech' | 'monochrome' | 'celebration';
 export type CertificateImage = { data: string; width: number; height: number };
-export type CertificateRecipient = { id: string; name: string; group: string; email?: string; verificationUrl?: string };
+export type CertificateRecipient = { id: string; name: string; group: string; email?: string; verificationUrl?: string; certificateId?: string };
 export type CertificateDesign = {
   version: 1;
   template: CertificateTemplate;
@@ -118,83 +118,54 @@ export function parseCertificateDesign(value: unknown): CertificateDesign {
   design.fontFamily = (data.fontFamily ?? 'sans') as CertificateDesign['fontFamily'];
   for (const key of ['fontScale', 'nameOffsetY', 'bodyOffsetY', 'signatureOffsetY'] as const) {
     const fallback = design[key]; const value = data[key] ?? fallback;
-    const [minimum, maximum] = key === 'fontScale' ? [0.8, 1.2] : [-12, 12];
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) throw new Error('Pengaturan tata letak tidak valid.');
-    design[key] = value;
+    if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Pengaturan tata letak tidak valid.');
+    if (key === 'fontScale' && (value < 0.8 || value > 1.2)) throw new Error('Skala huruf harus 80–120%.');
+    if (key !== 'fontScale' && (value < -12 || value > 12)) throw new Error('Offset tata letak harus -12 sampai 12.');
+    Object.assign(design, { [key]: value });
   }
-  if (data.useTemplateFrame !== undefined && typeof data.useTemplateFrame !== 'boolean') throw new Error('Pengaturan bingkai tidak valid.');
-  design.useTemplateFrame = data.useTemplateFrame ?? true;
-  for (const key of IMAGE_KEYS) design[key] = parseImage(data[key]);
-  if (!design.title.trim()) throw new Error('Isi judul sertifikat terlebih dahulu.');
-  for (const field of CERTIFICATE_FIELDS) {
-    const words = (design[field.key] as string).matchAll(/\{([^{}]+)\}/g);
-    for (const match of words) if (!VARIABLES.has(match[1])) throw new Error(`Variabel {${match[1]}} pada ${field.label} tidak dikenal.`);
-  }
-  if (/\{(?!tahun\}|urutan\})[^{}]+\}/.test(design.numberPattern)) throw new Error('Pola nomor hanya mendukung {tahun} dan {urutan}.');
+  design.useTemplateFrame = typeof data.useTemplateFrame === 'boolean' ? data.useTemplateFrame : true;
+  for (const key of IMAGE_KEYS) design[key] = parseImage(data[key] ?? null);
   return design;
-}
-
-export function certificateVariables(design: CertificateDesign, recipient: CertificateRecipient, index: number): Record<string, string> {
-  const sequence = String(design.startNumber + index).padStart(3, '0');
-  const year = design.date.slice(0, 4);
-  const number = design.numberPattern.replace(/\{(tahun|urutan)\}/g, (_, key) => key === 'tahun' ? year : sequence);
-  return { nama: recipient.name, grup: recipient.group, acara: design.event, penyelenggara: design.organizer, tempat: design.place,
-    tanggal: new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${design.date}T12:00:00Z`)),
-    tahun: year, urutan: sequence, nomor: number };
-}
-export function certificateText(text: string, variables: Record<string, string>): string {
-  return text.replace(/\{([^{}]+)\}/g, (match, key) => variables[key] ?? match);
-}
-export function manualCertificateRecipients(text: string): CertificateRecipient[] {
-  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const recipients = lines.map((line, index) => {
-    const parts = line.split('|');
-    const email = parts.length > 2 ? parts.pop()!.trim() : '';
-    return { id: `manual-${index}`, name: parts.shift()!.trim(), group: parts.join('|').trim(), email };
-  });
-  validateCertificateRecipients(recipients);
-  return recipients;
-}
-export function validateCertificateRecipients(recipients: CertificateRecipient[]): void {
-  if (recipients.length > CERTIFICATE_LIMIT) throw new Error(`Maksimal ${CERTIFICATE_LIMIT} sertifikat per unduhan. Pilih kelompok yang lebih kecil.`);
-  for (const row of recipients) {
-    if (!row.name.trim() || row.name.length > 180 || row.group.length > 120) throw new Error('Setiap penerima perlu nama (maks. 180 karakter) dan grup maksimal 120 karakter.');
-    if (row.email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email) || row.email.length > 254)) throw new Error(`Email ${row.name} tidak valid.`);
-  }
-}
-export function validateCertificateBatch(design: CertificateDesign, recipients: CertificateRecipient[]): void {
-  validateCertificateRecipients(recipients);
-  if (!recipients.length) throw new Error('Isi atau pilih minimal satu penerima sertifikat.');
-  if (design.startNumber + recipients.length - 1 > 999999) throw new Error('Nomor sertifikat terakhir melebihi 999999.');
-  if (recipients.length > 1 && design.numberPattern.trim() && !design.numberPattern.includes('{urutan}')) throw new Error('Tambahkan {urutan} pada pola nomor agar setiap sertifikat memiliki nomor berbeda, atau kosongkan pola nomor.');
 }
 
 export async function loadCertificateImage(file: File): Promise<CertificateImage> {
   if (file.size > 2 * 1024 * 1024) throw new Error('Gambar maksimal 2 MB.');
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const isPNG = bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71;
-  const isJPEG = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-  if (!isPNG && !isJPEG) throw new Error('Gunakan gambar dalam format PNG atau JPG.');
-  if (isPNG) pngDimensions(bytes);
-  const url = URL.createObjectURL(new Blob([bytes], { type: isPNG ? 'image/png' : 'image/jpeg' }));
-  try {
-    const image = await decodeCertificateImage(url);
-    if (image.naturalWidth * image.naturalHeight > 16000000) throw new Error('Resolusi gambar maksimal 16 megapiksel.');
-    const scale = Math.min(1, 1200 / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Browser tidak dapat memproses gambar.');
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const data = canvas.toDataURL('image/png');
-    if (data.length > 2800000) throw new Error('Gambar terlalu besar setelah diproses. Gunakan logo yang lebih kecil.');
-    return { data, width: canvas.width, height: canvas.height };
-  } finally { URL.revokeObjectURL(url); }
+  if (!['image/png', 'image/jpeg'].includes(file.type)) throw new Error('Gunakan gambar PNG atau JPEG.');
+  const bitmap = await createImageBitmap(file); const ratio = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * ratio)), height = Math.max(1, Math.round(bitmap.height * ratio));
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+  const context = canvas.getContext('2d'); if (!context) throw new Error('Browser tidak mendukung konversi gambar.');
+  context.drawImage(bitmap, 0, 0, width, height); bitmap.close();
+  return { data: canvas.toDataURL('image/png'), width, height };
 }
-export function decodeCertificateImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image); image.onerror = () => reject(new Error('Gambar tidak dapat dibaca. Gunakan PNG atau JPG yang valid.'));
-    image.src = url;
-  });
+
+export async function decodeCertificateImage(data: string): Promise<void> {
+  const response = await fetch(data); const blob = await response.blob(); const bitmap = await createImageBitmap(blob); bitmap.close();
+}
+
+export function certificateVariables(design: CertificateDesign, recipient: CertificateRecipient, index: number) {
+  const order = design.startNumber + index;
+  const date = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(new Date(`${design.date}T12:00:00`));
+  const values: Record<string, string> = { nama: recipient.name, grup: recipient.group, acara: design.event, penyelenggara: design.organizer, tanggal: date, tempat: design.place, tahun: design.date.slice(0, 4), urutan: String(order).padStart(4, '0'), nomor: '' };
+  values.nomor = certificateText(design.numberPattern, values);
+  return values;
+}
+
+export function certificateText(value: string, variables: Record<string, string>): string {
+  return value.replace(/\{([^{}]+)\}/g, (match, raw) => VARIABLES.has(String(raw).toLowerCase()) ? variables[String(raw).toLowerCase()] ?? '' : match);
+}
+
+export function manualCertificateRecipients(value: string): CertificateRecipient[] {
+  return value.split(/\r?\n/).map((line, index) => {
+    const [name = '', group = '', email = ''] = line.split(/\t|\s*\|\s*/);
+    return { id: `manual-${index}`, name: name.trim(), group: group.trim(), email: email.trim() };
+  }).filter(item => item.name);
+}
+
+export function validateCertificateBatch(design: CertificateDesign, recipients: CertificateRecipient[]) {
+  if (!recipients.length) throw new Error('Tambahkan sedikitnya satu penerima sertifikat.');
+  if (recipients.length > CERTIFICATE_LIMIT) throw new Error(`Maksimal ${CERTIFICATE_LIMIT} penerima per proses.`);
+  if (!design.organizer.trim() || !design.title.trim() || !design.event.trim()) throw new Error('Penyelenggara, judul, dan nama kegiatan wajib diisi.');
+  if (recipients.some(item => !item.name.trim())) throw new Error('Ada nama penerima yang kosong.');
+  if (design.startNumber + recipients.length - 1 > 999999) throw new Error('Rentang nomor sertifikat melewati batas 999999.');
 }
