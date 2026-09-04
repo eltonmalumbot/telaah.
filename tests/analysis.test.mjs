@@ -22,7 +22,7 @@ test('impor dan ekspor mempertahankan teks multiline dan menetralkan formula CSV
  const data={headers:values[0],rows:values.slice(1),sheet:'CSV'};
  const r=analyzeBatch(toParticipants(data,autoMapping(data.headers)));r[0].name='=1+1';
  assert.match(exportCSV(r),/"'=1\+1"/);
- assert.equal(parseCSV(exportCSV(r))[1][11],values[1][1]);
+ assert.equal(parseCSV(exportCSV(r))[1][12],values[1][1]);
 });
 test('sinyal menyertakan bukti dan batas penafsiran',()=>{
  const r=analyzeText('Sebagai model bahasa AI, saya tidak memiliki pengalaman pribadi.');

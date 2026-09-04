@@ -26,6 +26,9 @@ test('penerima dan nomor berurutan konsisten antara pratinjau, unduhan satuan, d
   assert.equal(names.length, 2);
   assert.notEqual(names[0].id, names[1].id);
   assert.equal(names[1].group, 'BTI');
+  const withEmail = manualCertificateRecipients('Peserta Email | BPA | peserta@example.com')[0];
+  assert.equal(withEmail.email, 'peserta@example.com');
+  assert.throws(() => manualCertificateRecipients('Peserta | BPA | bukan-email'), /Email/);
   assert.throws(() => manualCertificateRecipients('| BPA'), /nama/i);
   assert.throws(() => manualCertificateRecipients('Peserta\n'.repeat(201)), /200/);
   const design = { ...base, startNumber: 7 };

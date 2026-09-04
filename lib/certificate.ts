@@ -1,6 +1,6 @@
 export type CertificateTemplate = 'gold' | 'blue' | 'green' | 'minimal' | 'academic' | 'executive' | 'teal' | 'purple' | 'coral' | 'tech' | 'monochrome' | 'celebration';
 export type CertificateImage = { data: string; width: number; height: number };
-export type CertificateRecipient = { id: string; name: string; group: string };
+export type CertificateRecipient = { id: string; name: string; group: string; email?: string; verificationUrl?: string };
 export type CertificateDesign = {
   version: 1;
   template: CertificateTemplate;
@@ -23,6 +23,13 @@ export type CertificateDesign = {
   role2: string;
   footer: string;
   showGroup: boolean;
+  fontFamily: 'sans' | 'serif' | 'mono';
+  fontScale: number;
+  nameOffsetY: number;
+  bodyOffsetY: number;
+  signatureOffsetY: number;
+  useTemplateFrame: boolean;
+  background: CertificateImage | null;
   logo1: CertificateImage | null;
   logo2: CertificateImage | null;
   signature1: CertificateImage | null;
@@ -52,7 +59,8 @@ export function defaultCertificateDesign(date = new Date()): CertificateDesign {
     body: 'Atas partisipasi dan kontribusinya dalam kegiatan {acara} yang diselenggarakan oleh {penyelenggara} pada {tanggal}.',
     numberPattern: 'Nomor: CERT/{tahun}/{urutan}', startNumber: 1, date: iso, place: 'Jakarta', dateLine: '{tempat}, {tanggal}',
     signer1: 'Nama penandatangan', role1: 'Jabatan', signer2: '', role2: '', footer: '', showGroup: true,
-    logo1: null, logo2: null, signature1: null, signature2: null,
+    fontFamily: 'sans', fontScale: 1, nameOffsetY: 0, bodyOffsetY: 0, signatureOffsetY: 0, useTemplateFrame: true,
+    background: null, logo1: null, logo2: null, signature1: null, signature2: null,
   };
 }
 
@@ -65,7 +73,7 @@ export const CERTIFICATE_FIELDS: { key: keyof CertificateDesign; label: string; 
   { key: 'role1', label: 'Jabatan 1', max: 100 }, { key: 'signer2', label: 'Penandatangan 2', max: 100 },
   { key: 'role2', label: 'Jabatan 2', max: 100 }, { key: 'footer', label: 'Catatan bawah', max: 160 },
 ];
-const IMAGE_KEYS = ['logo1', 'logo2', 'signature1', 'signature2'] as const;
+const IMAGE_KEYS = ['background', 'logo1', 'logo2', 'signature1', 'signature2'] as const;
 const VARIABLES = new Set(['nama', 'grup', 'acara', 'penyelenggara', 'tanggal', 'tempat', 'nomor', 'tahun', 'urutan']);
 
 export function pngDimensions(bytes: Uint8Array): { width: number; height: number } {
@@ -106,6 +114,16 @@ export function parseCertificateDesign(value: unknown): CertificateDesign {
   if (!Number.isInteger(data.startNumber) || Number(data.startNumber) < 1 || Number(data.startNumber) > 999999) throw new Error('Nomor awal harus 1–999999.');
   if (typeof data.showGroup !== 'boolean') throw new Error('Pengaturan grup tidak valid.');
   design.date = data.date; design.startNumber = Number(data.startNumber); design.showGroup = data.showGroup;
+  if (!['sans', 'serif', 'mono'].includes(String(data.fontFamily ?? 'sans'))) throw new Error('Gaya font tidak didukung.');
+  design.fontFamily = (data.fontFamily ?? 'sans') as CertificateDesign['fontFamily'];
+  for (const key of ['fontScale', 'nameOffsetY', 'bodyOffsetY', 'signatureOffsetY'] as const) {
+    const fallback = design[key]; const value = data[key] ?? fallback;
+    const [minimum, maximum] = key === 'fontScale' ? [0.8, 1.2] : [-12, 12];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) throw new Error('Pengaturan tata letak tidak valid.');
+    design[key] = value;
+  }
+  if (data.useTemplateFrame !== undefined && typeof data.useTemplateFrame !== 'boolean') throw new Error('Pengaturan bingkai tidak valid.');
+  design.useTemplateFrame = data.useTemplateFrame ?? true;
   for (const key of IMAGE_KEYS) design[key] = parseImage(data[key]);
   if (!design.title.trim()) throw new Error('Isi judul sertifikat terlebih dahulu.');
   for (const field of CERTIFICATE_FIELDS) {
@@ -130,15 +148,19 @@ export function certificateText(text: string, variables: Record<string, string>)
 export function manualCertificateRecipients(text: string): CertificateRecipient[] {
   const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const recipients = lines.map((line, index) => {
-    const [name, ...group] = line.split('|');
-    return { id: `manual-${index}`, name: name.trim(), group: group.join('|').trim() };
+    const parts = line.split('|');
+    const email = parts.length > 2 ? parts.pop()!.trim() : '';
+    return { id: `manual-${index}`, name: parts.shift()!.trim(), group: parts.join('|').trim(), email };
   });
   validateCertificateRecipients(recipients);
   return recipients;
 }
 export function validateCertificateRecipients(recipients: CertificateRecipient[]): void {
   if (recipients.length > CERTIFICATE_LIMIT) throw new Error(`Maksimal ${CERTIFICATE_LIMIT} sertifikat per unduhan. Pilih kelompok yang lebih kecil.`);
-  for (const row of recipients) if (!row.name.trim() || row.name.length > 180 || row.group.length > 120) throw new Error('Setiap penerima perlu nama (maks. 180 karakter) dan grup maksimal 120 karakter.');
+  for (const row of recipients) {
+    if (!row.name.trim() || row.name.length > 180 || row.group.length > 120) throw new Error('Setiap penerima perlu nama (maks. 180 karakter) dan grup maksimal 120 karakter.');
+    if (row.email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email) || row.email.length > 254)) throw new Error(`Email ${row.name} tidak valid.`);
+  }
 }
 export function validateCertificateBatch(design: CertificateDesign, recipients: CertificateRecipient[]): void {
   validateCertificateRecipients(recipients);
@@ -152,7 +174,7 @@ export async function loadCertificateImage(file: File): Promise<CertificateImage
   const bytes = new Uint8Array(await file.arrayBuffer());
   const isPNG = bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71;
   const isJPEG = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-  if (!isPNG && !isJPEG) throw new Error('Gunakan logo atau tanda tangan dalam format PNG atau JPG.');
+  if (!isPNG && !isJPEG) throw new Error('Gunakan gambar dalam format PNG atau JPG.');
   if (isPNG) pngDimensions(bytes);
   const url = URL.createObjectURL(new Blob([bytes], { type: isPNG ? 'image/png' : 'image/jpeg' }));
   try {

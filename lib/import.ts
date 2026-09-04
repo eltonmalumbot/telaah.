@@ -1,6 +1,6 @@
 import type { Participant } from './analysis';
 export type Imported = { headers: string[]; rows: string[][]; sheet: string };
-export type Mapping = { name: string; group: string; response1: string; response2: string; duration: string };
+export type Mapping = { name: string; group: string; email: string; response1: string; response2: string; duration: string };
 
 export function parseCSV(input: string): string[][] {
  const text=input.replace(/^\ufeff/,'');
@@ -56,12 +56,12 @@ export async function readFile(file: File): Promise<Imported> {
 
 export function autoMapping(headers:string[]):Mapping {
  const locate=(names:string[])=>{ const i=headers.findIndex(h=>names.includes(h.toLowerCase().trim()));return i<0?'':String(i); };
- return {name:locate(['last name','nama','name','nama peserta','peserta']),group:locate(['first name','grup','group','unit','bagian']),response1:locate(['response 1','jawaban 1','jawaban','response','text','teks','refleksi']),response2:locate(['response 2','jawaban 2']),duration:locate(['duration','durasi'])};
+ return {name:locate(['last name','nama','name','nama peserta','peserta']),group:locate(['first name','grup','group','unit','bagian']),email:locate(['email','email address','alamat email','e-mail']),response1:locate(['response 1','jawaban 1','jawaban','response','text','teks','refleksi']),response2:locate(['response 2','jawaban 2']),duration:locate(['duration','durasi'])};
 }
 
 export function toParticipants(data:Imported,m:Mapping):Participant[] {
  if(m.response1==='')throw new Error('Pilih kolom teks atau Jawaban 1 terlebih dahulu.');
  if(m.response1===m.response2)throw new Error('Jawaban 1 dan Jawaban 2 harus memakai kolom berbeda.');
  const get=(r:string[],key:keyof Mapping)=>m[key]!==''?(r[Number(m[key])]??''):'';
- return data.rows.map((r,i)=>({id:i+1,name:get(r,'name').trim()||`Peserta baris ${i+2}`,group:get(r,'group').trim()||'Tanpa grup',response1:get(r,'response1'),response2:get(r,'response2'),duration:get(r,'duration')}));
+ return data.rows.map((r,i)=>({id:i+1,name:get(r,'name').trim()||`Peserta baris ${i+2}`,group:get(r,'group').trim()||'Tanpa grup',email:get(r,'email').trim(),response1:get(r,'response1'),response2:get(r,'response2'),duration:get(r,'duration')}));
 }

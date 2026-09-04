@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { reportText } from './pdf-font.ts';
+import { qrDataUrl } from './qr-code.ts';
 import { CERTIFICATE_TEMPLATES, certificateText, certificateVariables, parseCertificateDesign, validateCertificateBatch, type CertificateDesign, type CertificateImage, type CertificateRecipient } from './certificate.ts';
 
 type Paint = { fill?: string; stroke?: string; strokeWidth?: number };
@@ -8,8 +9,8 @@ export type CertificateNode =
   | ({ kind: 'polygon'; points: [number, number][] } & Paint)
   | ({ kind: 'circle'; x: number; y: number; radius: number } & Paint)
   | { kind: 'line'; x: number; y: number; x2: number; y2: number; stroke: string; strokeWidth: number }
-  | { kind: 'text'; x: number; y: number; text: string; size: number; color: string; align: 'center' | 'left' }
-  | { kind: 'image'; x: number; y: number; width: number; height: number; data: string };
+  | { kind: 'text'; x: number; y: number; text: string; size: number; color: string; align: 'center' | 'left'; family: string }
+  | { kind: 'image'; x: number; y: number; width: number; height: number; data: string; format?: 'PNG' | 'GIF' };
 export type CertificateScene = { width: 297; height: 210; nodes: CertificateNode[] };
 const FONT = 'TelaahCertificate';
 const MM_PER_PT = 25.4 / 72;
@@ -26,11 +27,15 @@ function layout(doc: jsPDF, design: CertificateDesign, recipient: CertificateRec
   const nodes: CertificateNode[] = [];
   const { ink, accent, template } = design;
   const paper = CERTIFICATE_TEMPLATES.find(item => item.id === template)!.paper;
+  const family = design.fontFamily === 'serif' ? 'times' : design.fontFamily === 'mono' ? 'courier' : FONT;
   const rect = (x: number, y: number, width: number, height: number, fill?: string, stroke?: string, strokeWidth = 0.3) => nodes.push({ kind: 'rect', x, y, width, height, fill, stroke, strokeWidth });
   const line = (x: number, y: number, x2: number, y2: number, stroke: string, strokeWidth = 0.3) => nodes.push({ kind: 'line', x, y, x2, y2, stroke, strokeWidth });
   const polygon = (points: [number, number][], fill: string) => nodes.push({ kind: 'polygon', points, fill });
   rect(0, 0, 297, 210, paper);
-  if (template === 'gold') {
+  if (design.background) nodes.push({ kind: 'image', x: 0, y: 0, width: 297, height: 210, data: design.background.data, format: 'PNG' });
+  if (!design.useTemplateFrame) {
+    // A custom full-page background can stand on its own without preset ornaments.
+  } else if (template === 'gold') {
     rect(8, 8, 281, 194, undefined, accent, 0.65);
     rect(11, 11, 275, 188, undefined, accent, 0.2);
     for (const [x, y, dx, dy] of [[8, 8, 1, 1], [289, 8, -1, 1], [8, 202, 1, -1], [289, 202, -1, -1]]) {
@@ -129,11 +134,12 @@ function layout(doc: jsPDF, design: CertificateDesign, recipient: CertificateRec
   const variables = certificateVariables(design, recipient, index);
   function text(value: string, label: string, x: number, y: number, width: number, height: number, maximum: number, minimum: number, color = ink) {
     if (!value.trim()) return;
+    maximum *= design.fontScale; minimum *= Math.min(1, design.fontScale);
     const printable = value.replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
     if (reportText(printable) !== printable) throw new Error(`${label}: sebagian karakter belum didukung font sertifikat. Sesuaikan karakter tersebut sebelum mengunduh.`);
     let lines: string[] = [], size = maximum, lineHeight = 0, totalHeight = 0;
     while (size >= minimum) {
-      doc.setFont(FONT, 'normal').setFontSize(size);
+      doc.setFont(family, 'normal').setFontSize(size);
       lines = doc.splitTextToSize(printable, width);
       lineHeight = size * MM_PER_PT * 1.25;
       totalHeight = (lines.length - 1) * lineHeight + size * MM_PER_PT;
@@ -142,7 +148,7 @@ function layout(doc: jsPDF, design: CertificateDesign, recipient: CertificateRec
     }
     if (size < minimum) throw new Error(`${label} terlalu panjang untuk template. Persingkat teks agar tetap terbaca.`);
     const baseline = y + (height - totalHeight) / 2 + size * MM_PER_PT * 0.8;
-    lines.forEach((part, n) => nodes.push({ kind: 'text', x: x + width / 2, y: baseline + n * lineHeight, text: part, size, color, align: 'center' }));
+    lines.forEach((part, n) => nodes.push({ kind: 'text', x: x + width / 2, y: baseline + n * lineHeight, text: part, size, color, align: 'center', family }));
   }
   function image(source: CertificateImage | null, cx: number, y: number, boxWidth: number, boxHeight: number) {
     if (!source) return;
@@ -153,40 +159,44 @@ function layout(doc: jsPDF, design: CertificateDesign, recipient: CertificateRec
   if (design.logo1 && design.logo2) {
     image(design.logo1, 127.5, 15, 31, 20); image(design.logo2, 169.5, 15, 31, 20);
   } else image(design.logo1 || design.logo2, 148.5, 15, 45, 20);
+  if (recipient.verificationUrl) {
+    nodes.push({ kind: 'image', x: 263, y: 17, width: 19, height: 19, data: qrDataUrl(recipient.verificationUrl, 3, 4), format: 'GIF' });
+    text('VERIFIKASI', 'Label QR', 260, 36.5, 25, 4, 5.5, 5, ink);
+  }
   const expand = (value: string) => certificateText(value, variables);
   text(expand(design.organizer), 'Penyelenggara', 41, 38, 215, 9, 12, 9);
   text(expand(design.title), 'Judul', 36, 50, 225, 17, 32, 19);
   text(expand(design.subtitle), 'Subjudul', 43, 68, 211, 7, 11, 8, accent);
   text(variables.nomor, 'Nomor sertifikat', 43, 78, 211, 6, 8.5, 7);
   text(expand(design.introduction), 'Pengantar nama', 43, 88, 211, 7, 10.5, 8.5);
-  text(recipient.name, 'Nama penerima', 37, 99, 223, 19, 27, 15);
-  line(82, 120, 215, 120, accent, 0.35);
-  if (design.showGroup) text(recipient.group, 'Grup penerima', 43, 122, 211, 6, 9, 7.5);
-  text(expand(design.body), 'Isi sertifikat', 42, 132, 213, 24, 11, 8.5);
-  text(expand(design.dateLine), 'Tempat dan tanggal', 43, 158, 211, 7, 9, 7.5);
+  text(recipient.name, 'Nama penerima', 37, 99 + design.nameOffsetY, 223, 19, 27, 15);
+  line(82, 120 + design.nameOffsetY, 215, 120 + design.nameOffsetY, accent, 0.35);
+  if (design.showGroup) text(recipient.group, 'Grup penerima', 43, 122 + design.nameOffsetY, 211, 6, 9, 7.5);
+  text(expand(design.body), 'Isi sertifikat', 42, 132 + design.bodyOffsetY, 213, 24, 11, 8.5);
+  text(expand(design.dateLine), 'Tempat dan tanggal', 43, 158 + design.bodyOffsetY, 211, 7, 9, 7.5);
   const signers = [
     { name: design.signer1, role: design.role1, image: design.signature1 },
     { name: design.signer2, role: design.role2, image: design.signature2 },
   ].filter(signer => signer.name.trim() || signer.role.trim() || signer.image);
   signers.forEach((signer, n) => {
     const cx = signers.length === 1 ? 148.5 : n === 0 ? 87 : 210;
-    image(signer.image, cx, 167, 49, 13);
-    text(expand(signer.name), `Nama penandatangan ${n + 1}`, cx - 46, 181, 92, 7, 10, 7);
-    line(cx - 24, 188, cx + 24, 188, accent, 0.2);
-    text(expand(signer.role), `Jabatan ${n + 1}`, cx - 46, 189, 92, 5, 8, 6.5);
+    image(signer.image, cx, 167 + design.signatureOffsetY, 49, 13);
+    text(expand(signer.name), `Nama penandatangan ${n + 1}`, cx - 46, 181 + design.signatureOffsetY, 92, 7, 10, 7);
+    line(cx - 24, 188 + design.signatureOffsetY, cx + 24, 188 + design.signatureOffsetY, accent, 0.2);
+    text(expand(signer.role), `Jabatan ${n + 1}`, cx - 46, 189 + design.signatureOffsetY, 92, 5, 8, 6.5);
   });
   // Keep the footer inside the innermost border and below the signature roles.
-  text(expand(design.footer), 'Catatan bawah', 45, 195, 207, 3, 6.5, 6);
+  text(expand(design.footer), 'Catatan bawah', 45, 195 + design.signatureOffsetY, 207, 3, 6.5, 6);
   return { width: 297, height: 210, nodes };
 }
 
 function drawScene(doc: jsPDF, scene: CertificateScene) {
   for (const node of scene.nodes) {
     if (node.kind === 'text') {
-      doc.setFont(FONT, 'normal').setFontSize(node.size).setTextColor(node.color);
+      doc.setFont(node.family, 'normal').setFontSize(node.size).setTextColor(node.color);
       doc.text(node.text, node.x, node.y, { align: node.align });
     } else if (node.kind === 'image') {
-      doc.addImage(node.data, 'PNG', node.x, node.y, node.width, node.height);
+      doc.addImage(node.data, node.format ?? 'PNG', node.x, node.y, node.width, node.height);
     } else if (node.kind === 'line') {
       doc.setDrawColor(node.stroke).setLineWidth(node.strokeWidth); doc.line(node.x, node.y, node.x2, node.y2);
     } else {
