@@ -1,12 +1,13 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { Archive, Check, ChevronDown, GitCompareArrows, Save, Search, Trash2, Trophy } from "lucide-react";
+import { Archive, BarChart3, Check, ChevronDown, GitCompareArrows, Save, Search, Trash2, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { AnalysisDashboard } from "@/components/analysis-dashboard";
 import { qualityScore, qualityStatus, rankQuality } from "@/lib/quality";
 import type { Reviewed } from "@/lib/analysis";
 
@@ -84,7 +85,7 @@ function ComparisonCard({ row }: { row?: Reviewed }) {
 }
 
 export function AnalysisTools({ rows, sourceName, onLoad }: { rows: Reviewed[]; sourceName: string; onLoad: (rows: Reviewed[], sourceName: string) => void }) {
-  const [compareOpen, setCompareOpen] = useState(false); const [topOpen, setTopOpen] = useState(false); const [projectsOpen, setProjectsOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false); const [compareOpen, setCompareOpen] = useState(false); const [topOpen, setTopOpen] = useState(false); const [projectsOpen, setProjectsOpen] = useState(false);
   const [first, setFirst] = useState(String(rows[0]?.id ?? "")); const [second, setSecond] = useState(String(rows[1]?.id ?? ""));
   const [projects, setProjects] = useState<StoredAnalysis[]>([]); const [projectName, setProjectName] = useState(""); const [message, setMessage] = useState("");
   const ranked = useMemo(() => rankQuality(rows).filter((row) => row.quality).sort((a, b) => (a.qualityRank ?? Infinity) - (b.qualityRank ?? Infinity) || a.id - b.id), [rows]);
@@ -97,8 +98,10 @@ export function AnalysisTools({ rows, sourceName, onLoad }: { rows: Reviewed[]; 
     <div className="analysis-summary">
       <button type="button" className="analysis-summary-stat" onClick={() => setTopOpen(true)} disabled={!top.length}><Trophy size={19} /><strong>{top.length}</strong><span>Kandidat Top 10</span><small>Lihat rincian penilaian</small></button>
       <div><Save size={19} /><strong>{rows.filter((row) => row.quality?.confirmed).length}</strong><span>Nilai dikonfirmasi</span></div>
-      <div className="analysis-tool-actions"><Button size="sm" variant="outline" onClick={() => setCompareOpen(true)}><GitCompareArrows size={15} />Bandingkan 2 peserta</Button><Button size="sm" variant="outline" onClick={() => setProjectsOpen(true)}><Archive size={15} />Proyek analisis</Button></div>
+      <div className="analysis-tool-actions"><Button size="sm" onClick={() => setDashboardOpen(true)}><BarChart3 size={15} />Dashboard analisis</Button><Button size="sm" variant="outline" onClick={() => setCompareOpen(true)}><GitCompareArrows size={15} />Bandingkan 2 peserta</Button><Button size="sm" variant="outline" onClick={() => setProjectsOpen(true)}><Archive size={15} />Proyek analisis</Button></div>
     </div>
+
+    <Dialog open={dashboardOpen} onOpenChange={setDashboardOpen}><DialogContent className="analysis-tools-dialog dashboard-dialog"><DialogHeader><DialogTitle>Dashboard Analisis</DialogTitle><DialogDescription>Ringkasan interaktif seluruh respons, kualitas jawaban, pola bahasa, duplikasi, grup, dan progres reviewer.</DialogDescription></DialogHeader><AnalysisDashboard rows={rows} sourceName={sourceName} /></DialogContent></Dialog>
 
     <Dialog open={topOpen} onOpenChange={setTopOpen}><DialogContent className="analysis-tools-dialog top-candidates-dialog"><DialogHeader><DialogTitle>Penilaian Kandidat Top 10</DialogTitle><DialogDescription>Peringkat berdasarkan rubrik kualitas saat ini. Skor awal otomatis perlu diperiksa dan dikonfirmasi reviewer.</DialogDescription></DialogHeader>{top.length ? <div className="top-candidate-list">{top.map((row) => <article key={row.id}><div className="candidate-rank"><span>#{row.qualityRank}</span><strong>{qualityScore(row.quality!)}</strong><small>/100</small></div><div className="candidate-content"><div className="candidate-heading"><div><h3>{row.name}</h3><p>{row.group} · Respons #{row.id}</p></div><span className={row.quality?.confirmed ? "review-status confirmed" : "review-status"}>{row.quality ? qualityStatus(row.quality) : "Belum dinilai"}</span></div><RubricScores row={row} /><p className="quality-summary-text">{qualitySummary(row)}</p></div><Button size="sm" variant="outline" onClick={() => compareCandidate(row)}><GitCompareArrows size={14} />Bandingkan</Button></article>)}</div> : <div className="tools-empty"><Search size={24} /><p>Belum ada kandidat. Isi acuan tugas lalu periksa file untuk membuat penilaian.</p></div>}</DialogContent></Dialog>
 
