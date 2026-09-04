@@ -1,10 +1,11 @@
 "use client";
 
 import { useId, useMemo, useState } from 'react';
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, GitCompareArrows, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { matchingParticipants, type MatchKind, type Reviewed } from '@/lib/analysis';
+import { PARTICIPANT_COMPARE_EVENT, type ParticipantCompareDetail } from '@/lib/ui-events';
 
 const MATCH_TYPES: { kind: MatchKind; label: string; count: 'exactCount' | 'similarCount' | 'response1Count' | 'response2Count' }[] = [
   { kind: 'exact', label: 'Pasangan sama persis', count: 'exactCount' },
@@ -24,6 +25,12 @@ export function DuplicateMatches({ rows, selected, onSelect }: { rows: Reviewed[
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const label = MATCH_TYPES.find(type => type.kind === active)?.label;
 
+  function compareWith(row: Reviewed) {
+    window.dispatchEvent(new CustomEvent<ParticipantCompareDetail>(PARTICIPANT_COMPARE_EVENT, {
+      detail: { firstId: selected.id, secondId: row.id },
+    }));
+  }
+
   return <section className="duplicate-details">
     <h3>Kecocokan dalam file</h3>
     <dl>{MATCH_TYPES.map(type => <div key={type.kind}>
@@ -34,10 +41,13 @@ export function DuplicateMatches({ rows, selected, onSelect }: { rows: Reviewed[
     {active && <section id={`${id}-list`} className="match-list" aria-labelledby={`${id}-heading`}>
       <div className="match-list-heading"><Users size={17} aria-hidden="true"/><h4 id={`${id}-heading`}>{label}</h4></div>
       <p className="match-list-note">{matches.length.toLocaleString('id')} peserta dari seluruh file, termasuk peserta yang sedang dibuka. Filter tabel dan pilihan Top 10 tidak membatasi daftar ini.</p>
-      {matches.length > PAGE_SIZE && <Input className="match-search" aria-label="Cari nama atau grup dalam daftar kecocokan" placeholder="Cari nama atau grup…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }}/>}
+      {matches.length > PAGE_SIZE && <Input className="match-search" aria-label="Cari nama atau grup dalam daftar kecocokan" placeholder="Cari nama atau grup…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }}/>} 
       <ul>{visible.map(row => <li key={row.id}>
         <div className="match-person"><strong>{row.name}</strong><span>{row.group || 'Tanpa grup'} · Respons #{row.id}</span>{row.id === selected.id && <small>Peserta ini</small>}</div>
-        {row.id !== selected.id && <Button variant="ghost" size="sm" className="match-open" aria-label={`Buka detail ${row.name}, respons ${row.id}`} onClick={() => onSelect(row.id)}>Buka detail<ArrowRight size={14} aria-hidden="true"/></Button>}
+        {row.id !== selected.id && <div className="match-row-actions">
+          <Button variant="outline" size="sm" className="match-compare" aria-label={`Bandingkan ${selected.name} dengan ${row.name}`} onClick={() => compareWith(row)}><GitCompareArrows size={14} aria-hidden="true"/>Bandingkan</Button>
+          <Button variant="ghost" size="sm" className="match-open" aria-label={`Buka detail ${row.name}, respons ${row.id}`} onClick={() => onSelect(row.id)}>Buka detail<ArrowRight size={14} aria-hidden="true"/></Button>
+        </div>}
       </li>)}</ul>
       {!visible.length && <p className="match-list-note" role="status">Tidak ada nama atau grup yang cocok dengan pencarian.</p>}
       {filtered.length > PAGE_SIZE && <div className="match-pagination"><span>{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} dari {filtered.length.toLocaleString('id')}</span><div><Button variant="outline" size="icon" aria-label="Halaman kecocokan sebelumnya" disabled={page === 0} onClick={() => setPage(current => current - 1)}><ChevronLeft size={15}/></Button><Button variant="outline" size="icon" aria-label="Halaman kecocokan berikutnya" disabled={(page + 1) * PAGE_SIZE >= filtered.length} onClick={() => setPage(current => current + 1)}><ChevronRight size={15}/></Button></div></div>}
